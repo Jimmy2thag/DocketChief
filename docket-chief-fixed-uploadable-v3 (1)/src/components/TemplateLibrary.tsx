@@ -1,97 +1,34 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { Search, FileText, Plus, Edit, Copy, Star } from 'lucide-react';
-
-interface Template {
-  id: string;
-  title: string;
-  category: string;
-  description: string;
-  jurisdiction: string;
-  tags: string[];
-  content: string;
-  isCustom: boolean;
-  isFavorite: boolean;
-  lastModified: string;
-}
+import { Search, FileText, Plus, Edit, Copy, Star, RefreshCw } from 'lucide-react';
+import { createEmptyTemplate, getTemplateCategories, TemplateRecord, useTemplateLibrary } from '@/contexts/TemplateContext';
+import { useToast } from '@/hooks/use-toast';
 
 interface TemplateLibraryProps {
-  onEditTemplate?: (template: Template) => void;
-  onAnalyzeTemplate?: (content: string) => void;
+  onEditTemplate?: (template: TemplateRecord) => void;
+  onAnalyzeTemplate?: (content: string, metadata?: TemplateRecord) => void;
 }
 
 export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
   onEditTemplate,
   onAnalyzeTemplate
 }) => {
+  const { templates, toggleFavorite, resetTemplates } = useTemplateLibrary();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedJurisdiction, setSelectedJurisdiction] = useState('all');
 
-  const templates: Template[] = [
-    {
-      id: '1',
-      title: 'Employment Agreement',
-      category: 'contracts',
-      description: 'Comprehensive employment contract with standard terms',
-      jurisdiction: 'Federal',
-      tags: ['employment', 'contract', 'standard'],
-      content: 'EMPLOYMENT AGREEMENT\n\nThis Employment Agreement...',
-      isCustom: false,
-      isFavorite: true,
-      lastModified: '2024-01-15'
-    },
-    {
-      id: '2',
-      title: 'Motion to Dismiss',
-      category: 'motions',
-      description: 'Standard motion to dismiss with supporting arguments',
-      jurisdiction: 'California',
-      tags: ['motion', 'dismiss', 'civil'],
-      content: 'MOTION TO DISMISS\n\nTO THE HONORABLE COURT...',
-      isCustom: false,
-      isFavorite: false,
-      lastModified: '2024-01-10'
-    },
-    {
-      id: '3',
-      title: 'NDA Template',
-      category: 'agreements',
-      description: 'Non-disclosure agreement for business transactions',
-      jurisdiction: 'New York',
-      tags: ['nda', 'confidentiality', 'business'],
-      content: 'NON-DISCLOSURE AGREEMENT\n\nThis Agreement...',
-      isCustom: false,
-      isFavorite: true,
-      lastModified: '2024-01-12'
-    },
-    {
-      id: '4',
-      title: 'Custom Brief Template',
-      category: 'briefs',
-      description: 'My customized appellate brief template',
-      jurisdiction: 'Texas',
-      tags: ['brief', 'appellate', 'custom'],
-      content: 'APPELLATE BRIEF\n\nCustom template...',
-      isCustom: true,
-      isFavorite: false,
-      lastModified: '2024-01-20'
-    }
-  ];
+  const jurisdictions = useMemo(() => {
+    const uniques = new Set<string>(['all']);
+    templates.forEach(template => uniques.add(template.jurisdiction));
+    return Array.from(uniques);
+  }, [templates]);
 
-  const categories = [
-    { id: 'all', label: 'All Templates', count: templates.length },
-    { id: 'contracts', label: 'Contracts', count: templates.filter(t => t.category === 'contracts').length },
-    { id: 'motions', label: 'Motions', count: templates.filter(t => t.category === 'motions').length },
-    { id: 'briefs', label: 'Briefs', count: templates.filter(t => t.category === 'briefs').length },
-    { id: 'agreements', label: 'Agreements', count: templates.filter(t => t.category === 'agreements').length }
-  ];
-
-  const jurisdictions = ['all', 'Federal', 'California', 'New York', 'Texas'];
+  const categories = useMemo(() => getTemplateCategories(templates), [templates]);
 
   const filteredTemplates = templates.filter(template => {
     const matchesSearch = template.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -102,6 +39,14 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
     
     return matchesSearch && matchesCategory && matchesJurisdiction;
   });
+
+  const handleReset = () => {
+    resetTemplates();
+    toast({
+      title: 'Template library restored',
+      description: 'Default templates have been reloaded.'
+    });
+  };
 
   return (
     <div className="max-w-7xl mx-auto p-6">
@@ -177,10 +122,16 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
               </h2>
               <p className="text-gray-600">{filteredTemplates.length} templates found</p>
             </div>
-            <Button onClick={() => onEditTemplate?.({} as Template)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Template
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleReset}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Restore Defaults
+              </Button>
+              <Button onClick={() => onEditTemplate?.(createEmptyTemplate())}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Template
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -207,24 +158,31 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
                 </CardHeader>
                 <CardContent>
                   <div className="flex gap-2">
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       onClick={() => onEditTemplate?.(template)}
                       className="flex-1"
                     >
                       <Edit className="h-4 w-4 mr-1" />
                       Edit
                     </Button>
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       variant="outline"
-                      onClick={() => onAnalyzeTemplate?.(template.content)}
+                      onClick={() => onAnalyzeTemplate?.(template.content, template)}
                     >
                       <Copy className="h-4 w-4 mr-1" />
                       Analyze
                     </Button>
                   </div>
                   <p className="text-xs text-gray-500 mt-2">Modified: {template.lastModified}</p>
+                  <button
+                    type="button"
+                    onClick={() => toggleFavorite(template.id)}
+                    className="mt-2 text-xs text-blue-600 hover:underline"
+                  >
+                    {template.isFavorite ? 'Remove from favorites' : 'Mark as favorite'}
+                  </button>
                 </CardContent>
               </Card>
             ))}

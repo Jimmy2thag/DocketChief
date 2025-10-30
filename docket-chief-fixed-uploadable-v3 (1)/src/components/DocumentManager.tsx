@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FileText, Download, Trash2, Eye, Search, Filter } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -22,6 +22,30 @@ export const DocumentManager: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [usingFallback, setUsingFallback] = useState(false);
+
+  const fallbackDocuments = useMemo<Document[]>(
+    () => [
+      {
+        id: 'sample-nda',
+        filename: 'Mutual_NDA.pdf',
+        file_type: 'application/pdf',
+        file_size: 524288,
+        upload_date: new Date().toISOString(),
+        preview_available: true,
+      },
+      {
+        id: 'sample-msa',
+        filename: 'Master_Service_Agreement.docx',
+        file_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        file_size: 734003,
+        upload_date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
+        preview_available: false,
+      },
+    ],
+    []
+  );
 
   useEffect(() => {
     fetchDocuments();
@@ -44,15 +68,20 @@ export const DocumentManager: React.FC = () => {
 
       if (error) throw error;
       setDocuments(data || []);
+      setError('');
+      setUsingFallback(false);
     } catch (error) {
       console.error('Error fetching documents:', error);
+      setError('Unable to reach the document store. Showing cached examples instead.');
+      setDocuments(fallbackDocuments);
+      setUsingFallback(true);
     } finally {
       setLoading(false);
     }
   };
 
   const filterDocuments = () => {
-    let filtered = documents;
+    let filtered = [...documents];
 
     if (searchTerm) {
       filtered = filtered.filter(doc =>
@@ -96,16 +125,22 @@ export const DocumentManager: React.FC = () => {
     return '📁';
   };
 
-  if (loading) {
-    return <div className="p-6">Loading documents...</div>;
-  }
-
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       <div>
         <h1 className="text-3xl font-bold mb-2">Document Manager</h1>
         <p className="text-gray-600">Manage your uploaded legal documents</p>
       </div>
+
+      {loading && <div className="p-4 rounded border text-sm text-gray-600 bg-gray-50">Loading documents...</div>}
+      {!loading && error && (
+        <div className="p-4 rounded border border-amber-300 bg-amber-50 text-sm text-amber-800">{error}</div>
+      )}
+      {usingFallback && (
+        <div className="p-3 rounded bg-blue-50 border border-blue-200 text-xs text-blue-700">
+          Displaying read-only sample documents while the Supabase connection is unavailable.
+        </div>
+      )}
 
       {/* Search and Filter */}
       <div className="flex gap-4 mb-6">
@@ -183,11 +218,16 @@ export const DocumentManager: React.FC = () => {
           <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No documents found</h3>
           <p className="text-gray-500">
-            {searchTerm || typeFilter !== 'all' 
+            {searchTerm || typeFilter !== 'all'
               ? 'Try adjusting your search or filter criteria'
               : 'Upload your first document to get started'
             }
           </p>
+          {!loading && (
+            <Button className="mt-4" variant="outline" onClick={fetchDocuments}>
+              Refresh
+            </Button>
+          )}
         </div>
       )}
     </div>

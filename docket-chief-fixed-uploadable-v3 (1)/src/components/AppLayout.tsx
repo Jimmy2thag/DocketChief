@@ -43,6 +43,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from './ui/button';
 import { User, LogOut, CreditCard, Settings, Bell } from 'lucide-react';
+import { TemplateRecord, useTemplateLibrary } from '@/contexts/TemplateContext';
 
 export const AppLayout = () => {
   const { user, signOut } = useAuth();
@@ -50,7 +51,9 @@ export const AppLayout = () => {
   const [selectedMotion, setSelectedMotion] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
-  const [editingTemplate, setEditingTemplate] = useState<any>(null);
+  const [editingTemplate, setEditingTemplate] = useState<TemplateRecord | null>(null);
+  const [analyzerSeed, setAnalyzerSeed] = useState<string | null>(null);
+  const { upsertTemplate } = useTemplateLibrary();
   
   const legalTools = [
     {
@@ -124,9 +127,30 @@ export const AppLayout = () => {
       case 'alert-dashboard':
         return <AlertDashboard />;
       case 'document-analyzer':
-        return <DocumentAnalyzer />;
+        return <DocumentAnalyzer initialDocument={analyzerSeed ?? undefined} onResetSeed={() => setAnalyzerSeed(null)} />;
       case 'template-library':
-        return editingTemplate ? <TemplateEditor template={editingTemplate} onSave={() => setEditingTemplate(null)} onCancel={() => setEditingTemplate(null)} /> : <TemplateLibrary onEditTemplate={setEditingTemplate} />;
+        return editingTemplate ? (
+          <TemplateEditor
+            template={editingTemplate}
+            onSave={(template) => {
+              upsertTemplate(template);
+              setEditingTemplate(null);
+            }}
+            onClose={() => setEditingTemplate(null)}
+            onAnalyze={(content) => {
+              setAnalyzerSeed(content);
+              setActiveTab('document-analyzer');
+            }}
+          />
+        ) : (
+          <TemplateLibrary
+            onEditTemplate={setEditingTemplate}
+            onAnalyzeTemplate={(content) => {
+              setAnalyzerSeed(content);
+              setActiveTab('document-analyzer');
+            }}
+          />
+        );
       case 'contract-drafting':
         return user ? <ContractDraftingTool /> : <div className="p-8 text-center">Please sign in to draft contracts</div>;
       case 'upload':

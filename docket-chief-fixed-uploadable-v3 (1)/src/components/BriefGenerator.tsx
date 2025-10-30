@@ -7,8 +7,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, FileText, Download, Copy } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
+import { legalAiChat } from '@/lib/aiService';
+import { CourtListenerResult, searchCourtListener } from '@/lib/courtListener';
 
 interface BriefData {
   briefType: string;
@@ -32,6 +33,9 @@ export function BriefGenerator() {
   });
   const [generatedBrief, setGeneratedBrief] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [authorities, setAuthorities] = useState<CourtListenerResult[]>([]);
+  const [authorityError, setAuthorityError] = useState('');
+  const [isFetchingAuthorities, setIsFetchingAuthorities] = useState(false);
   const { toast } = useToast();
 
   const briefTypes = [
@@ -62,22 +66,49 @@ export function BriefGenerator() {
     }
 
     setIsGenerating(true);
+    setIsFetchingAuthorities(true);
+    setAuthorityError('');
     try {
-      const { data, error } = await supabase.functions.invoke('brief-generator', {
-        body: briefData
+      const retrievedAuthorities = await searchCourtListener(briefData.legalIssues, {
+        jurisdiction: briefData.jurisdiction,
+        limit: 5,
+      }).catch((err) => {
+        setAuthorityError(err instanceof Error ? err.message : 'Unable to reach CourtListener.');
+        return [] as CourtListenerResult[];
       });
 
-      if (error) throw error;
+      setAuthorities(retrievedAuthorities);
 
-      if (data.success) {
-        setGeneratedBrief(data.brief);
-        toast({
-          title: "Brief Generated",
-          description: "Your legal brief has been generated successfully"
-        });
-      } else {
-        throw new Error(data.error);
-      }
+      const proceduralRules: Record<string, string[]> = {
+        appellate: ['Fed. R. App. P. 28', 'Fed. R. App. P. 32'],
+        trial: ['Fed. R. Civ. P. 8', 'Fed. R. Civ. P. 56'],
+        summary_judgment: ['Fed. R. Civ. P. 56', 'Fed. R. Civ. P. 12'],
+        motion_to_dismiss: ['Fed. R. Civ. P. 12(b)(6)', 'Fed. R. Civ. P. 12(b)(1)'],
+        opposition: ['Fed. R. Civ. P. 7', 'Local Rule 7-3'],
+      };
+
+      const ruleCitations = proceduralRules[briefData.briefType as keyof typeof proceduralRules] || ['Fed. R. Civ. P. 1'];
+      const authoritySummary = retrievedAuthorities
+        .map((result) => `${result.caseName} (${result.court}, ${result.date_filed || 'n.d.'}) - ${result.citation.join(', ')}`)
+        .slice(0, 3)
+        .join('\n');
+
+      const { content } = await legalAiChat({
+        system:
+          'You are an expert litigator. Draft briefs that strictly follow applicable procedural rules and rely on the provided authorities. Use Markdown headings, a Table of Authorities, Statement of the Issues, Argument, and Conclusion. Do not invent citations.',
+        messages: [
+          {
+            role: 'user',
+            content: `Draft a ${briefTypes.find((t) => t.value === briefData.briefType)?.label ?? 'legal brief'} with the following context.\n\nCase Title: ${briefData.caseTitle}\nJurisdiction: ${briefData.jurisdiction || 'Federal'}\nFacts: ${briefData.facts}\nLegal Issues: ${briefData.legalIssues}\nClient Position: ${briefData.clientPosition || 'Not specified'}\nRules to Apply: ${ruleCitations.join(', ')}\nUser Provided Authorities: ${briefData.relevantCases || 'None'}\nCourtListener Authorities:\n${authoritySummary || 'No authorities retrieved.'}\n\nReturn the full brief in Markdown, making sure each citation references the supplied authorities or rules.`,
+          },
+        ],
+      });
+
+      setGeneratedBrief(content.trim());
+      toast({
+        title: "Brief Generated",
+        description: "Your legal brief has been generated successfully",
+      });
     } catch (error) {
       console.error('Brief generation error:', error);
       toast({
@@ -87,6 +118,7 @@ export function BriefGenerator() {
       });
     } finally {
       setIsGenerating(false);
+      setIsFetchingAuthorities(false);
     }
   };
 
@@ -233,6 +265,34 @@ export function BriefGenerator() {
             <CardDescription>AI-generated legal brief ready for review</CardDescription>
           </CardHeader>
           <CardContent>
+            {isFetchingAuthorities && (
+              <div className="text-sm text-gray-500 mb-3">Querying CourtListener for recent authorities...</div>
+            )}
+            {authorityError && (
+              <div className="text-sm text-red-600 mb-3">{authorityError}</div>
+            )}
+            {authorities.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-sm font-semibold text-gray-700">Authorities referenced</h4>
+                <ul className="mt-2 space-y-2">
+                  {authorities.map((authority) => (
+                    <li key={authority.id} className="text-xs text-gray-600">
+                      <a
+                        href={`https://www.courtlistener.com${authority.absolute_url}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        {authority.caseName}
+                      </a>
+                      {authority.citation.length > 0 && (
+                        <span className="block text-gray-500">{authority.citation.join(', ')}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {generatedBrief ? (
               <div className="space-y-4">
                 <div className="flex gap-2">
