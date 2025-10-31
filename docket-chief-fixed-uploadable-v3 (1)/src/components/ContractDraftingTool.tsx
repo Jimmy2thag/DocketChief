@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -6,27 +6,65 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { FileText, Download, Save, Edit } from 'lucide-react';
+import { TemplateRecord, useTemplateLibrary } from '@/contexts/TemplateContext';
+import { useToast } from '@/hooks/use-toast';
 
 export function ContractDraftingTool() {
-  const [selectedTemplate, setSelectedTemplate] = useState('');
+  const { templates } = useTemplateLibrary();
+  const { toast } = useToast();
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [partyA, setPartyA] = useState('');
   const [partyB, setPartyB] = useState('');
   const [terms, setTerms] = useState('');
   const [generatedContract, setGeneratedContract] = useState('');
   const [isEditing, setIsEditing] = useState(false);
 
-  const templates = [
-    { id: 'nda', name: 'Non-Disclosure Agreement' },
-    { id: 'service', name: 'Service Agreement' },
-    { id: 'employment', name: 'Employment Contract' },
-    { id: 'lease', name: 'Lease Agreement' },
-    { id: 'purchase', name: 'Purchase Agreement' }
-  ];
+  const contractTemplates = useMemo(
+    () => templates.filter((template) => template.category === 'contracts' || template.category === 'agreements'),
+    [templates]
+  );
+
+  const selectedTemplate: TemplateRecord | undefined = contractTemplates.find((template) => template.id === selectedTemplateId) ?? contractTemplates[0];
+
+  useEffect(() => {
+    if (!selectedTemplateId && contractTemplates.length) {
+      setSelectedTemplateId(contractTemplates[0].id);
+    }
+  }, [contractTemplates, selectedTemplateId]);
 
   const generateContract = () => {
-    const template = templates.find(t => t.id === selectedTemplate);
-    const contract = `
-${template?.name || 'Contract'}
+    const baseContent = selectedTemplate?.content || `
+${selectedTemplate?.title || 'Contract'}
+
+This agreement is entered into between Party A and Party B.
+
+1. PURPOSE
+   Describe the scope of services or obligations.
+
+2. KEY TERMS
+   Outline payment, delivery, or performance obligations.
+
+3. GOVERNING LAW
+   This agreement shall be governed by the laws of [JURISDICTION].
+
+4. SIGNATURES
+   Provide signature blocks for the parties.
+`;
+
+    const replacements: Record<string, string> = {
+      '[PARTY_A]': partyA || '[Party A]',
+      '[PARTY_B]': partyB || '[Party B]',
+      '[PARTY A]': partyA || '[Party A]',
+      '[PARTY B]': partyB || '[Party B]',
+      '[TERMS]': terms || '[Terms to be specified]'
+    };
+
+    let contract = baseContent;
+    Object.entries(replacements).forEach(([token, value]) => {
+      contract = contract.replace(new RegExp(token, 'gi'), value);
+    });
+
+    const partyBlock = `
 
 This agreement is entered into between:
 
@@ -35,28 +73,26 @@ Party B: ${partyB || '[Party B Name]'}
 
 Terms and Conditions:
 ${terms || '[Terms to be specified]'}
+`;
 
-WHEREAS, the parties wish to enter into this agreement under the following terms:
+    if (!contract.includes('This agreement is entered into between')) {
+      contract = `${contract.trim()}${partyBlock}`;
+    }
 
-1. SCOPE OF WORK
-   The parties agree to the terms as outlined above.
-
-2. PAYMENT TERMS
-   Payment shall be made according to the agreed schedule.
-
-3. CONFIDENTIALITY
-   Both parties agree to maintain confidentiality of all information.
-
-4. TERMINATION
-   This agreement may be terminated by either party with written notice.
+    contract = `${contract.trim()}
 
 IN WITNESS WHEREOF, the parties have executed this agreement.
 
 _________________                    _________________
 ${partyA || '[Party A]'}                        ${partyB || '[Party B]'}
 Date: ___________                    Date: ___________
-    `;
+`;
+
     setGeneratedContract(contract);
+    toast({
+      title: 'Contract generated',
+      description: selectedTemplate ? `${selectedTemplate.title} draft created using the template library.` : 'Generic contract draft created.'
+    });
   };
 
   const saveContract = () => {
@@ -92,14 +128,14 @@ Date: ___________                    Date: ___________
           <CardContent className="space-y-4">
             <div>
               <Label htmlFor="template">Template Type</Label>
-              <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+              <Select value={selectedTemplate?.id ?? ''} onValueChange={setSelectedTemplateId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choose a template" />
                 </SelectTrigger>
                 <SelectContent>
-                  {templates.map(template => (
+                  {contractTemplates.map(template => (
                     <SelectItem key={template.id} value={template.id}>
-                      {template.name}
+                      {template.title}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -132,7 +168,7 @@ Date: ___________                    Date: ___________
                 id="terms"
                 value={terms}
                 onChange={(e) => setTerms(e.target.value)}
-                placeholder="Enter specific terms and conditions"
+                placeholder="Describe payment schedules, deliverables, or other negotiated terms"
                 rows={4}
               />
             </div>
@@ -150,6 +186,11 @@ Date: ___________                    Date: ___________
                 <Edit className="h-5 w-5" />
                 Generated Contract
               </span>
+              {selectedTemplate && (
+                <span className="text-xs text-gray-500">
+                  Based on: {selectedTemplate.title} ({selectedTemplate.jurisdiction})
+                </span>
+              )}
               <div className="flex gap-2">
                 <Button
                   variant="outline"

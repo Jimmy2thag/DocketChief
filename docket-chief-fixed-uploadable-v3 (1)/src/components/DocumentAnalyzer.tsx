@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertTriangle, FileText, Brain, Edit, Scale } from 'lucide-react';
+import { legalAiChat } from '@/lib/aiService';
+import { searchCourtListener, CourtListenerResult } from '@/lib/courtListener';
+import { useToast } from '@/hooks/use-toast';
 
 interface AnalysisResult {
   summary: string;
@@ -34,11 +37,160 @@ interface AnalysisResult {
   legalCitations: string[];
 }
 
-export default function DocumentAnalyzer() {
+interface DocumentAnalyzerProps {
+  initialDocument?: string;
+  onResetSeed?: () => void;
+}
+
+const detectParties = (text: string) => {
+  const matches = text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/g) || [];
+  return Array.from(new Set(matches)).slice(0, 6);
+};
+
+const detectDates = (text: string) => {
+  const pattern = /(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}|\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/g;
+  return text.match(pattern)?.slice(0, 6) || [];
+};
+
+const detectCurrency = (text: string) => {
+  const pattern = /\$\s?\d{1,3}(?:,\d{3})*(?:\.\d+)?/g;
+  return text.match(pattern)?.slice(0, 6) || [];
+};
+
+const detectObligations = (text: string) => {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .filter((sentence) => /(shall|must|agree|will)/i.test(sentence))
+    .slice(0, 6);
+};
+
+const detectRisks = (text: string) => {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .filter((sentence) => /(risk|breach|penalty|liability)/i.test(sentence))
+    .slice(0, 3);
+};
+
+const buildFallbackAnalysis = (text: string): AnalysisResult => {
+  const parties = detectParties(text);
+  const dates = detectDates(text);
+  const amounts = detectCurrency(text);
+  const obligations = detectObligations(text);
+  const risks = detectRisks(text);
+  const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
+
+  const summary = sentences.slice(0, 2).join(' ').trim() || 'Summary could not be generated. Review the document manually for details.';
+
+  const importantClauses = obligations.map((sentence, index) => ({
+    title: `Obligation ${index + 1}`,
+    content: sentence,
+    importance: index === 0 ? 'high' : index === 1 ? 'medium' : 'low',
+    explanation: 'Identified automatically because the sentence contains mandatory language such as “shall” or “must”.',
+  }));
+
+  const suggestedEdits = [
+    !/governing law/i.test(text) && {
+      section: 'Governing Law',
+      current: 'No governing law clause detected.',
+      suggested: 'Add a governing law and jurisdiction clause clarifying which forum controls disputes.',
+      reason: 'Ensures predictability and reduces venue disputes.',
+    },
+    !/termination/i.test(text) && {
+      section: 'Termination',
+      current: 'No explicit termination rights found.',
+      suggested: 'Insert termination rights for both parties including notice periods.',
+      reason: 'Clarifies exit mechanics and mitigates breach risk.',
+    },
+  ].filter(Boolean) as AnalysisResult['suggestedEdits'];
+
+  return {
+    summary,
+    keyInformation: {
+      parties,
+      dates,
+      amounts,
+      obligations,
+    },
+    importantClauses,
+    riskAssessment: {
+      highRisk: risks,
+      mediumRisk: obligations.filter((_, index) => index >= risks.length).slice(0, 3),
+      recommendations: [
+        'Confirm that all payment and delivery obligations contain specific timelines.',
+        'Document any indemnification responsibilities in writing.',
+        'Schedule a follow-up review with stakeholders to validate obligations.',
+      ],
+    },
+    suggestedEdits,
+    legalCitations: [],
+  };
+};
+
+const parseAiJson = (content: string) => {
+  const cleaned = content.replace(/```json|```/gi, '').trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (error) {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) {
+      return JSON.parse(match[0]);
+    }
+    throw error;
+  }
+};
+
+export default function DocumentAnalyzer({ initialDocument, onResetSeed }: DocumentAnalyzerProps) {
   const [documentText, setDocumentText] = useState('');
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [refinedDraft, setRefinedDraft] = useState('');
+  const [refineLoading, setRefineLoading] = useState(false);
+  const [refineError, setRefineError] = useState('');
+  const [supportingCases, setSupportingCases] = useState<CourtListenerResult[]>([]);
+  const [fetchingCases, setFetchingCases] = useState(false);
+  const [casesError, setCasesError] = useState('');
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (initialDocument) {
+      setDocumentText(initialDocument);
+      setAnalysis(null);
+      setError('');
+      setNotice('');
+      setRefinedDraft('');
+      setSupportingCases([]);
+      onResetSeed?.();
+    }
+  }, [initialDocument, onResetSeed]);
+
+  const gatherSupportingCases = async (analysisData: AnalysisResult) => {
+    const keywords = [
+      analysisData.importantClauses[0]?.title,
+      analysisData.keyInformation.obligations[0],
+      analysisData.summary,
+    ].filter(Boolean) as string[];
+
+    if (keywords.length === 0) {
+      setSupportingCases([]);
+      return;
+    }
+
+    setFetchingCases(true);
+    setCasesError('');
+
+    try {
+      const results = await searchCourtListener(keywords[0]!.slice(0, 120), { limit: 3 });
+      setSupportingCases(results);
+    } catch (err) {
+      console.error('Failed to fetch CourtListener cases', err);
+      setCasesError(err instanceof Error ? err.message : 'Failed to fetch supporting authority');
+      setSupportingCases([]);
+    } finally {
+      setFetchingCases(false);
+    }
+  };
 
   const analyzeDocument = async () => {
     if (!documentText.trim()) {
@@ -48,59 +200,163 @@ export default function DocumentAnalyzer() {
 
     setLoading(true);
     setError('');
+    setNotice('');
+    setAnalysis(null);
+    setSupportingCases([]);
+    setRefinedDraft('');
 
     try {
-      // Mock analysis for demo - replace with actual API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const mockAnalysis: AnalysisResult = {
-        summary: "This employment contract establishes terms between ABC Corp and John Smith for a Software Engineer position with competitive compensation and standard benefits.",
-        keyInformation: {
-          parties: ["ABC Corporation", "John Smith"],
-          dates: ["Start Date: January 15, 2024", "Contract Term: 2 years"],
-          amounts: ["$85,000 annual salary", "$5,000 signing bonus"],
-          obligations: ["40 hours/week", "Confidentiality agreement", "Non-compete clause"]
-        },
-        importantClauses: [
+      const { content } = await legalAiChat({
+        system: 'You are an AI legal assistant that extracts structured insights from legal documents. Always respond with valid JSON that matches the AnalysisResult TypeScript type with snake_case keys converted to camelCase. Arrays must always be arrays even if empty.',
+        messages: [
           {
-            title: "Non-Compete Clause",
-            content: "Employee agrees not to work for competitors within 50 miles for 12 months after termination.",
-            importance: "high" as const,
-            explanation: "This clause may be overly restrictive and could limit future employment opportunities."
+            role: 'user',
+            content: `Analyze the following legal document and return JSON matching this schema:
+{
+  "summary": string,
+  "keyInformation": {
+    "parties": string[],
+    "dates": string[],
+    "amounts": string[],
+    "obligations": string[]
+  },
+  "importantClauses": Array<{
+    "title": string,
+    "content": string,
+    "importance": "high" | "medium" | "low",
+    "explanation": string
+  }>,
+  "riskAssessment": {
+    "highRisk": string[],
+    "mediumRisk": string[],
+    "recommendations": string[]
+  },
+  "suggestedEdits": Array<{
+    "section": string,
+    "current": string,
+    "suggested": string,
+    "reason": string
+  }>,
+  "legalCitations": string[]
+}
+
+Document:
+"""${documentText}"""`,
           },
-          {
-            title: "Intellectual Property",
-            content: "All work product created during employment belongs to the company.",
-            importance: "high" as const,
-            explanation: "Standard IP assignment clause - ensure personal projects are excluded."
-          }
         ],
-        riskAssessment: {
-          highRisk: ["Broad non-compete clause", "Unlimited IP assignment"],
-          mediumRisk: ["At-will employment terms", "Limited severance provision"],
-          recommendations: ["Negotiate non-compete scope", "Clarify IP exceptions", "Review termination terms"]
-        },
-        suggestedEdits: [
-          {
-            section: "Section 5 - Non-Compete",
-            current: "within 50 miles for 12 months",
-            suggested: "within 25 miles for 6 months",
-            reason: "Reduce geographic and time restrictions for enforceability"
-          }
-        ],
-        legalCitations: [
-          "California Business and Professions Code Section 16600",
-          "Uniform Trade Secrets Act",
-          "Restatement (Second) of Contracts § 188"
-        ]
+      });
+
+      let parsed;
+      try {
+        parsed = parseAiJson(content);
+      } catch (parseError) {
+        console.warn('AI response was not valid JSON. Falling back to heuristics.', parseError);
+        const fallback = buildFallbackAnalysis(documentText);
+        setAnalysis(fallback);
+        setNotice('AI response could not be parsed. Displaying heuristic analysis.');
+        await gatherSupportingCases(fallback);
+        return;
+      }
+
+      const normalizeArray = (value: unknown): string[] => {
+        if (Array.isArray(value)) {
+          return value.map(String).filter(Boolean);
+        }
+        if (!value) return [];
+        return [String(value)];
       };
 
-      setAnalysis(mockAnalysis);
+      const normalized: AnalysisResult = {
+        summary: parsed.summary || 'No summary available.',
+        keyInformation: {
+          parties: normalizeArray(parsed.keyInformation?.parties),
+          dates: normalizeArray(parsed.keyInformation?.dates),
+          amounts: normalizeArray(parsed.keyInformation?.amounts),
+          obligations: normalizeArray(parsed.keyInformation?.obligations),
+        },
+        importantClauses: Array.isArray(parsed.importantClauses)
+          ? parsed.importantClauses.map((clause: any) => ({
+              title: clause?.title || 'Untitled Clause',
+              content: clause?.content || 'No clause content provided.',
+              importance: clause?.importance === 'low' || clause?.importance === 'medium' ? clause.importance : 'high',
+              explanation: clause?.explanation || 'No explanation provided.',
+            }))
+          : [],
+        riskAssessment: {
+          highRisk: normalizeArray(parsed.riskAssessment?.highRisk),
+          mediumRisk: normalizeArray(parsed.riskAssessment?.mediumRisk),
+          recommendations: normalizeArray(parsed.riskAssessment?.recommendations),
+        },
+        suggestedEdits: Array.isArray(parsed.suggestedEdits)
+          ? parsed.suggestedEdits.map((edit: any) => ({
+              section: edit?.section || 'Unspecified Section',
+              current: edit?.current || 'No current text provided.',
+              suggested: edit?.suggested || 'No suggestion provided.',
+              reason: edit?.reason || 'No reasoning provided.',
+            }))
+          : [],
+        legalCitations: normalizeArray(parsed.legalCitations),
+      };
+
+      setAnalysis(normalized);
+      await gatherSupportingCases(normalized);
     } catch (err) {
-      setError('Analysis failed. Please try again.');
+      console.error('Document analysis failed', err);
+      setError(err instanceof Error ? err.message : 'Analysis failed. Please try again.');
+      if (documentText) {
+        const fallback = buildFallbackAnalysis(documentText);
+        setAnalysis(fallback);
+        setNotice('Analysis service unavailable. Showing local heuristic analysis.');
+        await gatherSupportingCases(fallback);
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const refineDocument = async () => {
+    if (!documentText.trim()) {
+      setRefineError('Provide a document before requesting a refined draft.');
+      return;
+    }
+
+    setRefineError('');
+    setRefineLoading(true);
+    try {
+      const messages = [
+        {
+          role: 'user' as const,
+          content: `Please refine the following legal document. Focus on clarity, risk mitigation, and compliance with procedural rules.\n\nDocument:\n"""${documentText}"""`,
+        },
+      ];
+
+      if (analysis) {
+        messages.push({
+          role: 'assistant' as const,
+          content: `Context about the document: ${JSON.stringify(analysis)}`,
+        });
+      }
+
+      const { content } = await legalAiChat({
+        system:
+          'You are a senior legal editor. Rewrite the provided document for clarity, ensure obligations comply with relevant rules of civil procedure, and highlight suggested improvements in Markdown. Include a short “Key Changes” bullet list followed by the revised draft.',
+        messages,
+      });
+
+      setRefinedDraft(content.trim());
+      toast({ title: 'Document refined', description: 'A revised draft has been generated below.' });
+    } catch (err) {
+      console.error('Document refinement failed', err);
+      setRefineError(err instanceof Error ? err.message : 'Unable to refine the document.');
+    } finally {
+      setRefineLoading(false);
+    }
+  };
+
+  const copyRefinedDraft = () => {
+    if (!refinedDraft) return;
+    navigator.clipboard.writeText(refinedDraft);
+    toast({ title: 'Copied', description: 'Refined draft copied to clipboard.' });
   };
 
   return (
@@ -124,16 +380,58 @@ export default function DocumentAnalyzer() {
               <Button onClick={analyzeDocument} disabled={loading}>
                 {loading ? 'Analyzing...' : 'Analyze Document'}
               </Button>
-              <Button variant="outline" onClick={() => setDocumentText('')}>
+              <Button onClick={refineDocument} variant="secondary" disabled={refineLoading || loading}>
+                {refineLoading ? 'Refining...' : 'Refine Draft'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDocumentText('');
+                  setAnalysis(null);
+                  setError('');
+                  setNotice('');
+                  setRefinedDraft('');
+                  setSupportingCases([]);
+                  setCasesError('');
+                  setRefineError('');
+                }}
+              >
                 Clear
               </Button>
             </div>
             {error && (
               <div className="text-red-600 text-sm">{error}</div>
             )}
+            {notice && (
+              <div className="text-amber-600 text-sm">{notice}</div>
+            )}
+            {refineError && (
+              <div className="text-red-600 text-sm">{refineError}</div>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {refinedDraft && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Edit className="h-5 w-5" />
+                Refined Document Draft
+              </span>
+              <Button size="sm" variant="outline" onClick={copyRefinedDraft}>
+                Copy Refined Draft
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-gray-50 p-4 rounded border font-mono text-sm whitespace-pre-wrap max-h-96 overflow-y-auto">
+              {refinedDraft}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {analysis && (
         <Tabs defaultValue="summary" className="space-y-4">
@@ -323,6 +621,35 @@ export default function DocumentAnalyzer() {
                     </li>
                   ))}
                 </ul>
+                {fetchingCases && (
+                  <div className="text-sm text-gray-500 mt-4">Retrieving recent authorities from CourtListener...</div>
+                )}
+                {casesError && (
+                  <div className="text-sm text-red-600 mt-4">{casesError}</div>
+                )}
+                {supportingCases.length > 0 && (
+                  <div className="mt-4 space-y-3">
+                    <h4 className="font-semibold text-sm text-gray-700">Recent authorities from CourtListener</h4>
+                    <ul className="space-y-3">
+                      {supportingCases.map((item) => (
+                        <li key={item.id} className="p-3 rounded border bg-white shadow-sm">
+                          <div className="text-sm font-semibold text-blue-700">
+                            <a href={`https://www.courtlistener.com${item.absolute_url}`} target="_blank" rel="noreferrer" className="hover:underline">
+                              {item.caseName}
+                            </a>
+                          </div>
+                          <div className="text-xs text-gray-500">{item.court} · {item.date_filed || 'Date unavailable'}</div>
+                          {item.citation.length > 0 && (
+                            <div className="text-xs text-gray-600 mt-1">{item.citation.join(', ')}</div>
+                          )}
+                          {item.snippet && (
+                            <p className="text-xs text-gray-600 mt-2 line-clamp-3">{item.snippet}</p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

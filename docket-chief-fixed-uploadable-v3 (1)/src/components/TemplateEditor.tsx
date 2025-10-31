@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { TemplateRecord } from '@/contexts/TemplateContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -16,8 +17,8 @@ interface ClientInfo {
 }
 
 interface TemplateEditorProps {
-  template?: any;
-  onSave?: (template: any) => void;
+  template?: TemplateRecord;
+  onSave?: (template: TemplateRecord) => void;
   onClose?: () => void;
   onAnalyze?: (content: string) => void;
 }
@@ -81,16 +82,16 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
   ];
 
   const handleSave = () => {
-    const templateData = {
-      id: template?.id || Date.now().toString(),
+    const templateData: TemplateRecord = {
+      id: template?.id || `template-${Date.now()}`,
       title,
       category,
       jurisdiction,
       content,
-      tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+      tags: tags.split(',').map(tag => tag.trim()).filter(Boolean),
       description,
-      isCustom: true,
-      isFavorite: false,
+      isCustom: template?.isCustom ?? true,
+      isFavorite: template?.isFavorite ?? false,
       lastModified: new Date().toISOString().split('T')[0]
     };
     onSave?.(templateData);
