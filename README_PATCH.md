@@ -14,7 +14,7 @@ Supabase Edge Function secrets:
 
 2) **Deploy edge function**
 ```
-supabase functions deploy legal-ai-chat
+supabase functions deploy ai-chat
 supabase functions secrets set OPENAI_API_KEY=sk-... ALLOWED_ORIGINS=https://docketchief.com,https://www.docketchief.com
 ```
 
