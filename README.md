@@ -2,6 +2,8 @@
 
 🚀 **Now Live:** [https://docketchief.netlify.app](https://docketchief.netlify.app)
 
+📘 **[How to Access the AI Agent Features →](ACCESSING_AI_FEATURES.md)**
+
 ## Overview
 
 DocketChief is a comprehensive legal practice management application built with React, TypeScript, and Supabase. It provides lawyers and legal professionals with tools for case management, document analysis, legal research, and client collaboration.
@@ -62,6 +64,10 @@ VITE_ENVIRONMENT=development
 
 ## Documentation
 
+### Getting Started
+- **[Accessing AI Features](ACCESSING_AI_FEATURES.md)** - How to use the latest code with AI agent capabilities
+
+### Development & Deployment
 - [Deployment Setup](.github/DEPLOYMENT_SETUP.md)
 - [CI/CD Customization](.github/CI_CD_CUSTOMIZATION.md)
 - [E2E Testing Guide](.github/E2E_TESTING_GUIDE.md)
