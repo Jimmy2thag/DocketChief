@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Search, ExternalLink, Copy, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/lib/supabase';
 
 interface SearchFilters {
   query: string;
@@ -82,75 +83,42 @@ export default function CourtListenerAPI() {
     setError(null);
 
     try {
-      // This would normally call the Supabase edge function
-      // const { data, error } = await supabase.functions.invoke('courtlistener-search', {
-      //   body: { 
-      //     searchParams: {
-      //       ...filters,
-      //       page,
-      //       page_size: 20
-      //     }
-      //   }
-      // });
-
-      // For demonstration, we'll simulate the API response structure
-      // In production, this would be replaced with the actual API call
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API delay
-
-      // Mock response that matches CourtListener API v4 structure
-      const mockResponse = {
-        count: 1247,
-        next: page < 5 ? `page=${page + 1}` : null,
-        previous: page > 1 ? `page=${page - 1}` : null,
-        results: [
-          {
-            id: `case_${page}_1`,
-            title: `${filters.query} v. State of California`,
-            court: "California Supreme Court",
-            court_id: "cal",
-            date_filed: "2023-11-15",
-            citation: ["2023 Cal. LEXIS 1234", "123 Cal.4th 567"],
-            docket_number: "S123456",
-            snippet: `This case involves ${filters.query} and addresses important constitutional questions regarding due process and equal protection under the law...`,
-            absolute_url: `/opinion/123456/${filters.query.toLowerCase()}-v-state/`,
-            status: "Published",
-            cite_count: 42,
-            opinions: [{ type: "majority", author: "Justice Smith" }],
-            type: filters.type
-          },
-          {
-            id: `case_${page}_2`,
-            title: `United States v. ${filters.query}`,
-            court: "U.S. Court of Appeals for the Ninth Circuit",
-            court_id: "ca9",
-            date_filed: "2023-10-22",
-            citation: ["2023 U.S. App. LEXIS 5678"],
-            docket_number: "23-1234",
-            snippet: `Federal appellate case examining ${filters.query} in the context of criminal procedure and Fourth Amendment protections...`,
-            absolute_url: `/opinion/789012/united-states-v-${filters.query.toLowerCase()}/`,
-            status: "Published",
-            cite_count: 18,
-            opinions: [{ type: "majority", author: "Judge Johnson" }],
-            type: filters.type
+      // Call the Supabase edge function for CourtListener search
+      const { data, error } = await supabase.functions.invoke('courtlistener-search', {
+        body: { 
+          searchParams: {
+            ...filters,
+            page,
+            page_size: 20
           }
-        ]
-      };
-
-      setResults(mockResponse.results);
-      setTotalCount(mockResponse.count);
-      setCurrentPage(page);
-      setHasNextPage(!!mockResponse.next);
-
-      toast({
-        title: "Search Complete",
-        description: `Found ${mockResponse.count} results for "${filters.query}"`
+        }
       });
 
+      if (error) throw error;
+
+      if (data.success) {
+        setResults(data.results || []);
+        setTotalCount(data.count || 0);
+        setCurrentPage(page);
+        setHasNextPage(!!data.next);
+
+        toast({
+          title: "Search Complete",
+          description: `Found ${data.count || 0} results for "${filters.query}"`
+        });
+      } else {
+        throw new Error(data.error || 'Search failed');
+      }
+
     } catch (err: any) {
-      setError(err.message || 'Search failed');
+      const errorMessage = err.message || 'Failed to search legal database';
+      setError(errorMessage);
+      setResults([]);
+      setTotalCount(0);
+      
       toast({
         title: "Search Error",
-        description: err.message || 'Failed to search legal database',
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {

@@ -65,18 +65,43 @@ export function EmailDashboard() {
   const syncEmails = async (provider: 'gmail' | 'outlook') => {
     try {
       setLoading(true);
+      
+      // First, get the OAuth URL to redirect the user for authentication
+      const { data: authData, error: authError } = await supabase.functions.invoke('email-integration', {
+        body: {
+          action: 'get_oauth_url',
+          provider: provider,
+          userId: user?.id
+        }
+      });
+
+      if (authError) throw authError;
+      
+      if (!authData.success) {
+        console.warn('OAuth not fully configured:', authData.message);
+        // In a production environment, redirect user to OAuth flow:
+        // window.location.href = authData.authUrl;
+        
+        // For now, show a message that OAuth needs to be configured
+        alert(`${provider === 'gmail' ? 'Gmail' : 'Outlook'} integration requires OAuth configuration. ${authData.message}`);
+        return;
+      }
+
+      // After OAuth callback, you would get an access token
+      // For now, we'll attempt sync with proper structure
       const { data, error } = await supabase.functions.invoke('email-integration', {
         body: {
           action: provider === 'gmail' ? 'sync_gmail' : 'sync_outlook',
           userId: user?.id,
-          accessToken: 'mock_token' // In production, get from OAuth
+          accessToken: localStorage.getItem(`${provider}_access_token`) || '', // Get from OAuth storage
+          provider: provider
         }
       });
 
       if (error) throw error;
       
       // Save synced emails to database
-      if (data.emails?.length > 0) {
+      if (data.success && data.emails?.length > 0) {
         const emailsWithUserId = data.emails.map((email: any) => ({
           ...email,
           user_id: user?.id
@@ -87,9 +112,13 @@ export function EmailDashboard() {
         });
         
         await loadEmails();
+      } else if (data.message) {
+        console.info('Email sync status:', data.message);
+        alert(data.message);
       }
     } catch (error) {
       console.error('Error syncing emails:', error);
+      alert('Failed to sync emails. Please ensure OAuth is properly configured.');
     } finally {
       setLoading(false);
     }
