@@ -1,6 +1,10 @@
 /**
  * Client-side and server-side rate limiting utilities
  * Implements sliding window rate limiting per user/IP
+ * 
+ * Note: Rate limit counters are stored in plain text localStorage as they are
+ * not sensitive data. They only track request counts and reset times, which
+ * do not contain user credentials or personal information.
  */
 
 interface RateLimitConfig {
@@ -15,16 +19,20 @@ interface RateLimitEntry {
 }
 
 /**
- * Client-side rate limiter using localStorage
+ * Client-side rate limiter using sessionStorage
+ * Uses sessionStorage instead of localStorage for security - rate limit data
+ * is cleared when the browser session ends, reducing exposure of usage patterns.
  */
 export class ClientRateLimiter {
   private config: Required<RateLimitConfig>;
+  private storage: Storage;
 
-  constructor(config: RateLimitConfig) {
+  constructor(config: RateLimitConfig, storage: Storage = sessionStorage) {
     this.config = {
       keyPrefix: 'rate_limit',
       ...config,
     };
+    this.storage = storage;
   }
 
   private getKey(identifier: string): string {
@@ -39,7 +47,7 @@ export class ClientRateLimiter {
     const now = Date.now();
 
     // Get or create entry
-    const stored = localStorage.getItem(key);
+    const stored = this.storage.getItem(key);
     let entry: RateLimitEntry;
 
     if (stored) {
@@ -68,7 +76,7 @@ export class ClientRateLimiter {
 
     // Increment counter
     entry.count++;
-    localStorage.setItem(key, JSON.stringify(entry));
+    this.storage.setItem(key, JSON.stringify(entry));
 
     return {
       allowed: true,
@@ -84,7 +92,7 @@ export class ClientRateLimiter {
     const key = this.getKey(identifier);
     const now = Date.now();
 
-    const stored = localStorage.getItem(key);
+    const stored = this.storage.getItem(key);
     if (!stored) {
       return {
         remaining: this.config.maxRequests,
@@ -120,7 +128,7 @@ export class ClientRateLimiter {
    */
   reset(identifier: string): void {
     const key = this.getKey(identifier);
-    localStorage.removeItem(key);
+    this.storage.removeItem(key);
   }
 }
 
