@@ -203,5 +203,5 @@ test('should load quickly', async ({ page }) => {
 - [Playwright Inspector](https://playwright.dev/docs/inspector)
 
 ---
-*Last updated: November 2024*
+
 *Add new test scenarios as features are developed*
