@@ -238,7 +238,7 @@ serve(async (req) => {
   } catch (e) {
     console.error('Error in payments function:', e)
     return new Response(
-      JSON.stringify({ error: String(e) }),
+      JSON.stringify({ error: 'An error occurred processing the payment request' }),
       {
         status: 500,
         headers: { 'content-type': 'application/json', ...corsHeaders(origin) },

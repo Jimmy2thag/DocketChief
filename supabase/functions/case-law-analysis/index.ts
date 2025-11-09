@@ -245,7 +245,7 @@ Respond with valid JSON only.`
   } catch (e) {
     console.error('Error in case-law-analysis:', e)
     return new Response(
-      JSON.stringify({ error: String(e) }),
+      JSON.stringify({ error: 'An error occurred processing the case analysis request' }),
       {
         status: 500,
         headers: { 'content-type': 'application/json', ...corsHeaders(origin) },

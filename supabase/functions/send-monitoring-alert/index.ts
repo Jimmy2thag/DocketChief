@@ -110,7 +110,7 @@ This is an automated alert from DocketChief monitoring system.
   } catch (e) {
     console.error('Error in send-monitoring-alert:', e)
     return new Response(
-      JSON.stringify({ success: false, error: String(e) }),
+      JSON.stringify({ success: false, error: 'An error occurred sending the alert' }),
       {
         status: 500,
         headers: { 'content-type': 'application/json', ...corsHeaders(origin) },
