@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, BookOpen, ExternalLink, Plus, Loader2, Filter, Calendar, MapPin, FileText } from 'lucide-react';
+import { Search, BookOpen, ExternalLink, Plus, Loader2, Filter, Calendar, MapPin, FileText, Download } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Input } from './ui/input';
@@ -9,6 +9,9 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { supabase } from '@/lib/supabase';
+import { ExportService } from '@/lib/exportService';
+import { CacheService } from '@/lib/cacheService';
+import { useToast } from '@/hooks/use-toast';
 
 interface ResearchResult {
   id: string;
@@ -36,6 +39,7 @@ interface SearchFilters {
 }
 
 export const LegalResearchTool: React.FC = () => {
+  const { toast } = useToast();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ResearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -43,6 +47,7 @@ export const LegalResearchTool: React.FC = () => {
   const [briefText, setBriefText] = useState('');
   const [totalResults, setTotalResults] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedResults, setSelectedResults] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<SearchFilters>({
     jurisdiction: 'all',
     dateRange: { start: '', end: '' },
@@ -90,6 +95,30 @@ export const LegalResearchTool: React.FC = () => {
     setError(null);
 
     try {
+      // Try to get from cache first
+      const cacheKey = {
+        query: query.trim(),
+        jurisdiction: filters.jurisdiction,
+        dateRange: filters.dateRange,
+        caseType: filters.caseType,
+      };
+
+      const cachedResults = CacheService.get<{ results: ResearchResult[]; totalResults: number }>(
+        'legal-research',
+        cacheKey
+      );
+
+      if (cachedResults) {
+        setResults(cachedResults.results);
+        setTotalResults(cachedResults.totalResults);
+        setLoading(false);
+        toast({
+          title: "Results from cache",
+          description: "Loaded cached results for faster performance",
+        });
+        return;
+      }
+
       // Try to use the AI service for enhanced legal research
       const { data, error: searchError } = await supabase.functions
         .invoke('legal-research', {
@@ -106,8 +135,15 @@ export const LegalResearchTool: React.FC = () => {
       if (searchError) throw searchError;
 
       if (data.success) {
-        setResults(data.results || []);
-        setTotalResults(data.totalResults || 0);
+        const searchResults = {
+          results: data.results || [],
+          totalResults: data.totalResults || 0,
+        };
+        setResults(searchResults.results);
+        setTotalResults(searchResults.totalResults);
+        
+        // Cache the results for 5 minutes
+        CacheService.set('legal-research', cacheKey, searchResults);
       } else {
         throw new Error(data.error || 'Search failed');
       }
@@ -166,8 +202,22 @@ export const LegalResearchTool: React.FC = () => {
                result.citation.toLowerCase().includes(searchTerm);
       });
 
-      setResults(mockResults);
-      setTotalResults(mockResults.length);
+      const searchResults = {
+        results: mockResults,
+        totalResults: mockResults.length,
+      };
+      setResults(searchResults.results);
+      setTotalResults(searchResults.totalResults);
+      
+      // Cache mock results too
+      const cacheKey = {
+        query: query.trim(),
+        jurisdiction: filters.jurisdiction,
+        dateRange: filters.dateRange,
+        caseType: filters.caseType,
+      };
+      CacheService.set('legal-research', cacheKey, searchResults);
+      
       setError('Using enhanced research database. For full CourtListener integration, please check your connection.');
     } finally {
       setLoading(false);
@@ -178,6 +228,103 @@ export const LegalResearchTool: React.FC = () => {
     const citation = result.parsedCitation || result.citation;
     const briefEntry = `\n\n**${result.title}**\n${citation}\n${result.court} (${result.date})\n\n${result.summary}\n\n`;
     setBriefText(prev => prev + briefEntry);
+  };
+
+  const toggleResultSelection = (id: string) => {
+    const newSelection = new Set(selectedResults);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
+    } else {
+      newSelection.add(id);
+    }
+    setSelectedResults(newSelection);
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      if (selectedResults.size === 0 && results.length > 0) {
+        // Export all results if none selected
+        toast({
+          title: "Exporting all results",
+          description: "No results selected, exporting all visible results",
+        });
+        
+        const exportData = results.map(result => ({
+          title: result.title,
+          content: result.summary,
+          metadata: {
+            citation: result.parsedCitation || result.citation,
+            court: result.court,
+            date: result.date,
+            docketNumber: result.docketNumber,
+            citeCount: result.citeCount.toString(),
+          }
+        }));
+        
+        await ExportService.exportMultipleToPDF(exportData);
+      } else {
+        // Export selected results
+        const exportData = results
+          .filter(r => selectedResults.has(r.id))
+          .map(result => ({
+            title: result.title,
+            content: result.summary,
+            metadata: {
+              citation: result.parsedCitation || result.citation,
+              court: result.court,
+              date: result.date,
+              docketNumber: result.docketNumber,
+              citeCount: result.citeCount.toString(),
+            }
+          }));
+        
+        await ExportService.exportMultipleToPDF(exportData);
+      }
+      
+      toast({
+        title: "Export successful",
+        description: "PDF downloaded successfully",
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export failed",
+        description: "Failed to generate PDF. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleExportDOCX = async (result: ResearchResult) => {
+    try {
+      await ExportService.exportToDOCX({
+        title: result.title,
+        content: result.summary,
+        metadata: {
+          citation: result.parsedCitation || result.citation,
+          court: result.court,
+          date: result.date,
+          docketNumber: result.docketNumber,
+          citeCount: result.citeCount.toString(),
+        }
+      });
+      
+      toast({
+        title: "Export successful",
+        description: "DOCX downloaded successfully",
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export failed",
+        description: "Failed to generate DOCX. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getCacheStats = () => {
+    return CacheService.getStats();
   };
 
   const getRelevanceColor = (score: number) => {
@@ -310,10 +457,29 @@ export const LegalResearchTool: React.FC = () => {
               <BookOpen className="h-5 w-5" />
               Research Results
             </h2>
-            {totalResults > 0 && (
-              <Badge variant="secondary">{totalResults.toLocaleString()} total results</Badge>
-            )}
+            <div className="flex items-center gap-2">
+              {totalResults > 0 && (
+                <>
+                  <Badge variant="secondary">{totalResults.toLocaleString()} results</Badge>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={handleExportPDF}
+                    disabled={results.length === 0}
+                  >
+                    <Download className="h-3 w-3 mr-1" />
+                    Export PDF
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
+
+          {results.length > 0 && (
+            <div className="text-xs text-gray-500 flex items-center gap-4">
+              <span>Cache: {getCacheStats().hits} hits, {getCacheStats().misses} misses ({getCacheStats().hitRate}% hit rate)</span>
+            </div>
+          )}
 
           {results.length === 0 && !loading && (
             <Card className="p-8 text-center">
@@ -352,6 +518,14 @@ export const LegalResearchTool: React.FC = () => {
                 >
                   <Plus className="h-3 w-3 mr-1" />
                   Add to Brief
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => handleExportDOCX(result)}
+                >
+                  <Download className="h-3 w-3 mr-1" />
+                  Export DOCX
                 </Button>
                 {result.url && (
                   <Button size="sm" variant="outline" asChild>
