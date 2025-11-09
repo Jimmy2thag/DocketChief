@@ -5,6 +5,9 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Alert, AlertDescription } from './ui/alert';
 import { Loader2, CheckCircle } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { passwordResetRequestSchema } from '@/lib/validation';
+import { passwordResetRateLimiter, formatRetryAfter } from '@/lib/rateLimiter';
 
 interface PasswordResetModalProps {
   isOpen: boolean;
@@ -23,15 +26,33 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
     setError('');
 
     try {
-      // Simulate password reset email
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Check rate limit
+      const rateLimitCheck = await passwordResetRateLimiter.checkLimit('password-reset');
+      if (!rateLimitCheck.allowed) {
+        const retryAfter = Math.ceil((rateLimitCheck.resetTime - Date.now()) / 1000);
+        throw new Error(`Too many password reset attempts. Please try again in ${formatRetryAfter(retryAfter)}.`);
+      }
+
+      // Validate input
+      const validation = passwordResetRequestSchema.safeParse({ email });
+      if (!validation.success) {
+        throw new Error(validation.error.errors[0].message);
+      }
+
+      // Send password reset email
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(validation.data.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (resetError) throw resetError;
+
       setSuccess(true);
       setTimeout(() => {
         onClose();
         resetForm();
       }, 2000);
-    } catch (err: any) {
-      setError('Failed to send reset email. Please try again.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send reset email. Please try again.');
     } finally {
       setLoading(false);
     }
