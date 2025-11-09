@@ -10,7 +10,7 @@ DocketChief is a comprehensive legal practice management application built with 
 
 - ⚖️ **Case Management** - Organize and track legal cases
 - 📄 **Document Analysis** - AI-powered document processing
-- 🔍 **Legal Research** - Integrated legal database search
+- 🔍 **Legal Research** - Integrated search across Google Scholar (Federal & State Courts), CourtListener, and other legal databases
 - 📅 **Calendar & Deadlines** - Never miss important dates
 - 💬 **Client Portal** - Secure client communication
 - 📊 **Analytics Dashboard** - Track practice metrics
@@ -62,6 +62,7 @@ VITE_ENVIRONMENT=development
 
 ## Documentation
 
+- [Google Scholar Integration](docs/GOOGLE_SCHOLAR_INTEGRATION.md)
 - [Deployment Setup](.github/DEPLOYMENT_SETUP.md)
 - [CI/CD Customization](.github/CI_CD_CUSTOMIZATION.md)
 - [E2E Testing Guide](.github/E2E_TESTING_GUIDE.md)
