@@ -117,12 +117,13 @@ export const DocumentUpload: React.FC = () => {
         fileName: file.name
       });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Upload error:', err);
-      if (err.message?.includes('413') || err.message?.includes('too large')) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to upload document';
+      if (errorMessage.includes('413') || errorMessage.includes('too large')) {
         setError('File size exceeds the 50MB limit');
       } else {
-        setError(err.message || 'Failed to upload document');
+        setError(errorMessage);
       }
     } finally {
       setIsUploading(false);

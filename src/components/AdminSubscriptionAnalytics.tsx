@@ -30,7 +30,7 @@ export function AdminSubscriptionAnalytics() {
   });
 
   const [failedPaymentsData, setFailedPaymentsData] = useState({
-    failedPayments: [] as any[],
+    failedPayments: [] as Array<{ id: string; amount: number; reason: string; customer_email: string; created_at: string }>,
     totalFailedAmount: 0,
     recoveryRate: 0
   });

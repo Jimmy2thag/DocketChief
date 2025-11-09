@@ -77,7 +77,7 @@ export function EmailDashboard() {
       
       // Save synced emails to database
       if (data.emails?.length > 0) {
-        const emailsWithUserId = data.emails.map((email: any) => ({
+        const emailsWithUserId = data.emails.map((email: { message_id: string; [key: string]: unknown }) => ({
           ...email,
           user_id: user?.id
         }));

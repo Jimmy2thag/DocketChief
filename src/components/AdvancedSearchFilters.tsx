@@ -14,7 +14,7 @@ interface AdvancedSearchFiltersProps {
     courtLevel: string;
     practiceArea: string;
   };
-  onFilterChange: (key: string, value: any) => void;
+  onFilterChange: (key: string, value: string | { start: string; end: string }) => void;
 }
 
 export const AdvancedSearchFilters: React.FC<AdvancedSearchFiltersProps> = ({

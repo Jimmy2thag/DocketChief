@@ -4,7 +4,7 @@ export interface StripeWebhookEvent {
   id: string;
   type: string;
   data: {
-    object: any;
+    object: Record<string, unknown>;
   };
 }
 
@@ -45,7 +45,15 @@ export async function handleStripeWebhook(event: StripeWebhookEvent) {
   }
 }
 
-async function handleSubscriptionUpdate(subscription: any) {
+async function handleSubscriptionUpdate(subscription: {
+  id: string;
+  customer: string;
+  status: string;
+  items: { data: Array<{ price?: { id?: string; nickname?: string; product?: string } }> };
+  current_period_end: number;
+  cancel_at_period_end?: boolean;
+  canceled_at?: number | null;
+}) {
   const { id, customer, status, items, current_period_end, cancel_at_period_end, canceled_at } = subscription;
   
   const planId = items.data[0]?.price?.id;
@@ -76,7 +84,7 @@ async function handleSubscriptionUpdate(subscription: any) {
   console.log('Subscription updated successfully:', id);
 }
 
-async function handleSubscriptionDeleted(subscription: any) {
+async function handleSubscriptionDeleted(subscription: { id: string }) {
   const { id } = subscription;
 
   const { error } = await supabase
@@ -96,7 +104,13 @@ async function handleSubscriptionDeleted(subscription: any) {
   console.log('Subscription deleted successfully:', id);
 }
 
-async function handlePaymentSucceeded(invoice: any) {
+async function handlePaymentSucceeded(invoice: {
+  id: string;
+  customer: string;
+  amount_paid: number;
+  currency: string;
+  subscription?: string;
+}) {
   const { id, customer, amount_paid, currency, subscription } = invoice;
 
   const { error } = await supabase
@@ -119,7 +133,13 @@ async function handlePaymentSucceeded(invoice: any) {
   console.log('Payment recorded successfully:', id);
 }
 
-async function handlePaymentFailed(invoice: any) {
+async function handlePaymentFailed(invoice: {
+  id: string;
+  customer: string;
+  amount_due: number;
+  currency: string;
+  subscription?: string;
+}) {
   const { id, customer, amount_due, currency, subscription } = invoice;
 
   const { error } = await supabase
@@ -142,7 +162,12 @@ async function handlePaymentFailed(invoice: any) {
   console.log('Failed payment recorded:', id);
 }
 
-async function handlePaymentIntentSucceeded(paymentIntent: any) {
+async function handlePaymentIntentSucceeded(paymentIntent: {
+  id: string;
+  customer?: string;
+  amount: number;
+  currency: string;
+}) {
   const { id, customer, amount, currency } = paymentIntent;
 
   const { error } = await supabase

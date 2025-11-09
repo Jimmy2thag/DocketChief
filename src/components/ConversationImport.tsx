@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/lib/supabase';
 
 interface ConversationImportProps {
-  onImportComplete?: (conversation: any) => void;
+  onImportComplete?: (conversation: { id: string; title: string; platform: string }) => void;
 }
 
 export function ConversationImport({ onImportComplete }: ConversationImportProps) {
@@ -19,7 +19,7 @@ export function ConversationImport({ onImportComplete }: ConversationImportProps
   const [importMethod, setImportMethod] = useState<'file' | 'paste'>('file');
   const [textData, setTextData] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<{ title: string; messageCount: number; tags: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,7 +54,7 @@ export function ConversationImport({ onImportComplete }: ConversationImportProps
     }
   };
 
-  const processImport = async (conversationData: any) => {
+  const processImport = async (conversationData: Record<string, unknown>) => {
     try {
       // Process the conversation data
       const { data: processedResult, error: processError } = await supabase.functions.invoke('conversation-import', {
@@ -84,8 +84,8 @@ export function ConversationImport({ onImportComplete }: ConversationImportProps
       setTitle('');
       setTextData('');
       
-    } catch (err: any) {
-      setError(err.message || 'Failed to import conversation');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to import conversation');
     }
   };
 

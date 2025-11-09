@@ -15,7 +15,10 @@ interface Conversation {
   platform: 'chatgpt' | 'gemini';
   tags: string[];
   created_at: string;
-  conversation_data: any;
+  conversation_data: {
+    messages?: Array<{ role: string; content: string }>;
+    [key: string]: unknown;
+  };
 }
 
 export function ConversationManager() {
@@ -175,7 +178,7 @@ export function ConversationManager() {
                         </DialogHeader>
                         <ScrollArea className="h-96">
                           <div className="space-y-4">
-                            {conversation.conversation_data.messages?.map((message: any, index: number) => (
+                            {conversation.conversation_data.messages?.map((message: { role: string; content: string }, index: number) => (
                               <div key={index} className={`p-3 rounded-lg ${
                                 message.role === 'user' ? 'bg-blue-50 ml-8' : 'bg-gray-50 mr-8'
                               }`}>

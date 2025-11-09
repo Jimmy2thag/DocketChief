@@ -30,7 +30,7 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
         onClose();
         resetForm();
       }, 2000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to send reset email. Please try again.');
     } finally {
       setLoading(false);

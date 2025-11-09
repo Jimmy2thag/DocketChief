@@ -17,7 +17,7 @@ interface Collaboration {
   description: string;
   owner_id: string;
   created_at: string;
-  members?: any[];
+  members?: Array<{ id: string; email: string; role?: string }>;
 }
 
 export const CollaborationTools = () => {
