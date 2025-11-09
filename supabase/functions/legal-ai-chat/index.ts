@@ -80,7 +80,8 @@ serve(async (req) => {
       return await handleOpenAI(messages, system, body?.model, origin)
     }
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), {
+    console.error('Legal AI chat error:', e)
+    return new Response(JSON.stringify({ error: 'An unexpected error occurred. Please try again.' }), {
       status: 500,
       headers: { 'content-type': 'application/json', ...corsHeaders(origin) },
     })
@@ -140,7 +141,7 @@ async function handleOpenAI(
     })
   } catch (e) {
     console.error('OpenAI handler error:', e)
-    return new Response(JSON.stringify({ error: String(e) }), {
+    return new Response(JSON.stringify({ error: 'OpenAI service temporarily unavailable. Please try again.' }), {
       status: 500,
       headers: { 'content-type': 'application/json', ...corsHeaders(origin) },
     })
@@ -229,7 +230,7 @@ async function handleGemini(
     })
   } catch (e) {
     console.error('Gemini handler error:', e)
-    return new Response(JSON.stringify({ error: String(e) }), {
+    return new Response(JSON.stringify({ error: 'Gemini service temporarily unavailable. Please try again.' }), {
       status: 500,
       headers: { 'content-type': 'application/json', ...corsHeaders(origin) },
     })
