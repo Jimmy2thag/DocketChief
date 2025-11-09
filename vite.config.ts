@@ -20,6 +20,8 @@ export default defineConfig(({ mode }) => ({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
+    include: ['src/test/unit/**/*.test.ts', 'src/test/integration/**/*.test.ts'],
+    exclude: ['node_modules', 'dist', 'src/test/e2e'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
