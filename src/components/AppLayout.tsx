@@ -18,6 +18,7 @@ const DocumentManager = lazy(() => import('./DocumentManager').then(module => ({
 const UserDashboard = lazy(() => import('./UserDashboard').then(module => ({ default: module.UserDashboard })));
 const AuthModal = lazy(() => import('./AuthModal').then(module => ({ default: module.AuthModal })));
 const AIChat = lazy(() => import('./AIChat').then(module => ({ default: module.AIChat })));
+const AssistantChat = lazy(() => import('./AssistantChat').then(module => ({ default: module.AssistantChat })));
 const ConversationImport = lazy(() => import('./ConversationImport').then(module => ({ default: module.ConversationImport })));
 const ConversationManager = lazy(() => import('./ConversationManager').then(module => ({ default: module.ConversationManager })));
 const AdvancedSearch = lazy(() => import('./AdvancedSearch').then(module => ({ default: module.AdvancedSearch })));
@@ -55,6 +56,13 @@ export const AppLayout = () => {
   const { upsertTemplate } = useTemplateLibrary();
   
   const legalTools = [
+    {
+      id: 'assistant',
+      title: '🧠 Smart Assistant',
+      description: 'Memory-enhanced AI assistant that learns your preferences and helps you work faster',
+      image: 'https://d64gsuwffb70l.cloudfront.net/68d655106ee34a31072787c7_1758953707069_493aacf9.webp',
+      onClick: () => setActiveTab('assistant')
+    },
     {
       id: 'document-analyzer',
       title: 'AI Document Analysis',
@@ -176,6 +184,8 @@ export const AppLayout = () => {
         return user ? <CalendarDashboard /> : <div className="p-8 text-center">Please sign in to view calendar</div>;
       case 'chat':
         return <AIChat />;
+      case 'assistant':
+        return <AssistantChat />;
       case 'conversations':
         return user ? <ConversationManager /> : <div className="p-8 text-center">Please sign in to view conversations</div>;
       case 'import':
@@ -291,6 +301,7 @@ export const AppLayout = () => {
                   </button>
                   <div className="absolute left-0 mt-2 w-64 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                     <div className="py-2">
+                      <button onClick={() => setActiveTab('assistant')} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">🧠 Smart Assistant (New)</button>
                       <button onClick={() => setActiveTab('chat')} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">AI Chat</button>
                       <button onClick={() => setActiveTab('conversations')} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">Conversation Manager</button>
                       <button onClick={() => setActiveTab('import')} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">Import Conversations</button>
