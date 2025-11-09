@@ -31,7 +31,7 @@ Users can switch between providers in real-time through the UI.
 OPENAI_API_KEY=your_openai_api_key_here
 
 # Google Gemini API Key (new)
-GEMINI_API_KEY=your_gemini_api_key_here
+GOOGLE_AI_API_KEY=your_gemini_api_key_here
 ```
 
 #### For Supabase Edge Functions
@@ -39,13 +39,13 @@ GEMINI_API_KEY=your_gemini_api_key_here
 1. Go to your [Supabase Dashboard](https://app.supabase.com/)
 2. Navigate to **Project Settings** → **Edge Functions**
 3. Add the environment variable:
-   - Variable name: `GEMINI_API_KEY`
+   - Variable name: `GOOGLE_AI_API_KEY`
    - Value: Your Gemini API key
 
 Or use the Supabase CLI:
 
 ```bash
-supabase secrets set GEMINI_API_KEY=your_gemini_api_key_here
+supabase secrets set GOOGLE_AI_API_KEY=your_gemini_api_key_here
 ```
 
 ### 3. Deploy Edge Function
@@ -176,7 +176,7 @@ Be aware of rate limits for each provider:
 
 ## Troubleshooting
 
-### "GEMINI_API_KEY missing" Error
+### "GOOGLE_AI_API_KEY missing" Error
 
 **Solution:** Ensure the API key is set in Supabase environment variables and the edge function is redeployed.
 

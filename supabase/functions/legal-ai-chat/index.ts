@@ -113,12 +113,12 @@ serve(async (req) => {
 
     // Get appropriate API key
     const apiKey = provider === 'gemini' 
-      ? Deno.env.get('GEMINI_API_KEY')
+      ? Deno.env.get('GOOGLE_AI_API_KEY')
       : Deno.env.get('OPENAI_API_KEY')
 
     if (!apiKey) {
       return new Response(JSON.stringify({ 
-        error: `${provider === 'gemini' ? 'GEMINI_API_KEY' : 'OPENAI_API_KEY'} missing` 
+        error: `${provider === 'gemini' ? 'GOOGLE_AI_API_KEY' : 'OPENAI_API_KEY'} missing` 
       }), {
         status: 500,
         headers: { 'content-type': 'application/json', ...corsHeaders(origin) },
