@@ -25,3 +25,10 @@ dist-ssr
 
 # Local Netlify folder
 .netlify
+
+# Playwright test artifacts
+test-results/
+playwright-report/
+playwright/.cache/
+e2e-results.json
+e2e-results.xml
