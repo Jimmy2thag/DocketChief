@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { FileText, Download, Trash2, Eye, Search, Filter } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -47,18 +47,13 @@ export const DocumentManager: React.FC = () => {
     []
   );
 
-  useEffect(() => {
-    fetchDocuments();
-  }, []);
-
-  useEffect(() => {
-    filterDocuments();
-  }, [documents, searchTerm, typeFilter]);
-
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
       const { data, error } = await supabase
         .from('documents')
@@ -78,9 +73,9 @@ export const DocumentManager: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fallbackDocuments]);
 
-  const filterDocuments = () => {
+  const filterDocuments = useCallback(() => {
     let filtered = [...documents];
 
     if (searchTerm) {
@@ -94,7 +89,15 @@ export const DocumentManager: React.FC = () => {
     }
 
     setFilteredDocs(filtered);
-  };
+  }, [documents, searchTerm, typeFilter]);
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
+
+  useEffect(() => {
+    filterDocuments();
+  }, [filterDocuments]);
 
   const handleDelete = async (id: string) => {
     try {
