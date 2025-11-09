@@ -130,9 +130,10 @@ serve(async (req) => {
     })
 
   } catch (e) {
+    console.error('CourtListener search error:', e);
     return new Response(JSON.stringify({ 
       success: false, 
-      error: String(e),
+      error: 'Internal server error',
       count: 0,
       results: []
     }), {

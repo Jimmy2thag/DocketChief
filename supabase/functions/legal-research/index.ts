@@ -110,9 +110,10 @@ serve(async (req) => {
     })
 
   } catch (e) {
+    console.error('Legal research error:', e);
     return new Response(JSON.stringify({ 
       success: false, 
-      error: String(e),
+      error: 'Internal server error',
       results: [],
       totalResults: 0,
     }), {

@@ -137,9 +137,10 @@ serve(async (req) => {
     })
 
   } catch (e) {
+    console.error('Stripe payment error:', e);
     return new Response(JSON.stringify({ 
       success: false, 
-      error: String(e) 
+      error: 'Internal server error' 
     }), {
       status: 500,
       headers: { 'content-type': 'application/json', ...corsHeaders(origin) },
