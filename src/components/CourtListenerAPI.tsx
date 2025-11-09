@@ -28,7 +28,7 @@ interface SearchResult {
   absolute_url: string;
   status: string;
   cite_count: number;
-  opinions: any[];
+  opinions: Array<{ author_str: string; type: string; download_url?: string }>;
   type: string;
 }
 
@@ -146,11 +146,12 @@ export default function CourtListenerAPI() {
         description: `Found ${mockResponse.count} results for "${filters.query}"`
       });
 
-    } catch (err: any) {
-      setError(err.message || 'Search failed');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Search failed';
+      setError(errorMessage);
       toast({
         title: "Search Error",
-        description: err.message || 'Failed to search legal database',
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -200,7 +201,7 @@ export default function CourtListenerAPI() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Search Type</label>
-              <Select value={filters.type} onValueChange={(value: any) => setFilters(prev => ({ ...prev, type: value }))}>
+              <Select value={filters.type} onValueChange={(value: string) => setFilters(prev => ({ ...prev, type: value }))}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>

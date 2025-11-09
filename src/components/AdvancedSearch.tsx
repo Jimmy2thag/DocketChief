@@ -14,7 +14,7 @@ interface SearchResult {
   title: string;
   content: string;
   created_at: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 export const AdvancedSearch = () => {

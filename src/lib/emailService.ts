@@ -4,7 +4,7 @@ export interface AlertData {
   alertType: string;
   severity: 'critical' | 'high' | 'medium' | 'low';
   message: string;
-  details?: any;
+  details?: Record<string, unknown>;
   timestamp: string;
 }
 
@@ -83,7 +83,7 @@ export class EmailService {
     }
   }
 
-  private storeFailedAlert(alertData: AlertData, error: any): void {
+  private storeFailedAlert(alertData: AlertData, error: Error): void {
     try {
       const failedAlerts = JSON.parse(localStorage.getItem('failedAlerts') || '[]');
       failedAlerts.push({
@@ -103,7 +103,7 @@ export class EmailService {
     }
   }
 
-  getFailedAlerts(): any[] {
+  getFailedAlerts(): Array<AlertData & { failureReason: string; failureTime: string }> {
     try {
       return JSON.parse(localStorage.getItem('failedAlerts') || '[]');
     } catch {

@@ -139,7 +139,7 @@ export function CalendarDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Main Calendar */}
         <div className="lg:col-span-3">
-          <Tabs value={currentView} onValueChange={(value) => setCurrentView(value as any)}>
+          <Tabs value={currentView} onValueChange={(value) => setCurrentView(value as 'month' | 'week' | 'day')}>
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="month">Month</TabsTrigger>
               <TabsTrigger value="week">Week</TabsTrigger>

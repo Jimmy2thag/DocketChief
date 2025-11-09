@@ -8,7 +8,7 @@ export type ChatRequest = {
   provider?: AIProvider
   userIdentifier?: string
 }
-export type ChatResponse = { content: string; usage?: any }
+export type ChatResponse = { content: string; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } }
 
 type AIProvider = 'openai' | 'gemini'
 
