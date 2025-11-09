@@ -34,13 +34,21 @@ The DocketChief Intelligent Agent is a memory-enabled AI assistant that learns f
    - Orchestrates AI interactions with memory context
    - Extracts learnings from AI responses
    - Updates memory based on LEARNINGS_CANDIDATE blocks
+   - **NEW: Integrates CourtListener bulk data knowledge**
 
-3. **AgentContext** (`src/contexts/AgentContext.tsx`)
+3. **CourtListenerBulkDataService** (`src/lib/courtListenerBulkData.ts`)
+   - Provides context about available legal databases
+   - Generates motion guidance and research strategies
+   - Recommends data sources based on task type
+   - References millions of court opinions, dockets, and cases
+
+4. **AgentContext** (`src/contexts/AgentContext.tsx`)
    - React context provider for app-wide agent state
    - Manages memory refresh and consent updates
    - Provides agent enable/disable toggle
+   - **NEW: Exposes bulk data methods (generateMotionGuidance, getRecommendedSources)**
 
-4. **AIChat Component** (`src/components/AIChat.tsx`)
+5. **AIChat Component** (`src/components/AIChat.tsx`)
    - Enhanced with agent mode toggle
    - Settings menu for memory management
    - Visual indicators for agent status
@@ -261,6 +269,69 @@ Potential improvements to the agent system:
 - Use "Reset Memory" to clear all learned preferences
 - Explicitly correct the agent when it makes wrong assumptions
 - Check memory state in browser DevTools: `localStorage.getItem('docketchief_agent_memory')`
+
+## CourtListener Bulk Data Integration
+
+The agent now has access to knowledge about CourtListener's comprehensive bulk data storage, making it a powerful legal research brain. See [BULK_DATA_INTEGRATION.md](./BULK_DATA_INTEGRATION.md) for complete details.
+
+### What This Means
+
+The agent can now:
+- Reference millions of court opinions, dockets, and legal documents
+- Suggest targeted searches across comprehensive legal databases  
+- Provide strategic guidance for motions based on successful precedents
+- Recommend specific data sources based on your task (motion, research, citation, etc.)
+- Guide you to relevant supporting documentation
+
+### Available Data Sources
+
+The agent knows about:
+- **Opinions**: Court opinions from all federal and state courts
+- **Dockets**: Docket entries and case information
+- **Oral Arguments**: Audio recordings and transcripts
+- **Financial Disclosures**: Federal judge financial reports
+- **Judge Database**: Comprehensive judicial biographical data
+- **RECAP Archive**: PACER documents from the RECAP project
+
+Source: https://com-courtlistener-storage.s3-us-west-2.amazonaws.com/list.html?prefix=bulk-data/
+
+### Example Usage
+
+**User**: "Help me draft a motion to dismiss"
+
+**Agent**: Will now provide:
+- Research strategy recommendations
+- Specific search suggestions for precedents
+- Recommended data sources (opinions, dockets, etc.)
+- Citation pattern guidance
+- Strategic approach based on successful motions
+
+### For Developers
+
+```typescript
+import { useAgent } from '@/contexts/AgentContext';
+
+function Component() {
+  const { generateMotionGuidance, getRecommendedSources } = useAgent();
+  
+  // Get guidance for a specific motion
+  const guidance = generateMotionGuidance('summary judgment', 'California');
+  
+  // Get recommended data sources
+  const sources = getRecommendedSources('research');
+  
+  return <div>{guidance}</div>;
+}
+```
+
+### What It Doesn't Do
+
+The bulk data integration provides **guidance and context**, but does NOT:
+- Automatically search and retrieve documents (requires user action)
+- Download or cache bulk data locally (too large)
+- Perform real-time searches in bulk data (uses CourtListener API)
+
+The agent acts as an intelligent guide that knows what resources exist and how to use them effectively.
 
 ## Support
 

@@ -3,6 +3,7 @@
 
 import { AIService, ChatMessage } from './aiService';
 import { agentMemoryService, LearningsCandidate } from './agentMemory';
+import { bulkDataService } from './courtListenerBulkData';
 
 const AGENT_SYSTEM_PROMPT = `You are an intelligent in-app agent for DocketChief, a legal research platform.
 
@@ -57,7 +58,7 @@ export interface AgentResponse {
 
 export class DocketChiefAgent {
   /**
-   * Send a message to the agent with memory context
+   * Send a message to the agent with memory context and bulk data access
    */
   async sendMessage(
     conversationHistory: ChatMessage[],
@@ -68,10 +69,13 @@ export class DocketChiefAgent {
     const memory = agentMemoryService.getMemory();
     const memoryContext = agentMemoryService.formatMemoryForPrompt();
 
-    // Build system message with memory context
+    // Get bulk data context - this gives the agent knowledge of available legal databases
+    const bulkDataContext = bulkDataService.formatForAgentPrompt();
+
+    // Build system message with memory context and bulk data knowledge
     const systemMessage: ChatMessage = {
       role: 'system',
-      content: `${AGENT_SYSTEM_PROMPT}\n\n${memoryContext}\n\nUser: ${userIdentifier}`
+      content: `${AGENT_SYSTEM_PROMPT}\n\n${memoryContext}\n\n${bulkDataContext}\n\nUser: ${userIdentifier}`
     };
 
     // Prepare messages array with system prompt
@@ -158,6 +162,20 @@ export class DocketChiefAgent {
    */
   updateConsents(consents: { remember_preferences?: boolean; store_emails?: boolean }) {
     agentMemoryService.updateConsents(consents);
+  }
+
+  /**
+   * Generate motion guidance using bulk data context
+   */
+  generateMotionGuidance(motionType: string, jurisdiction?: string): string {
+    return bulkDataService.generateMotionGuidance(motionType, jurisdiction);
+  }
+
+  /**
+   * Get recommended bulk data sources for a specific task
+   */
+  getRecommendedSources(taskType: 'motion' | 'research' | 'citation' | 'strategy') {
+    return bulkDataService.getRecommendedSources(taskType);
   }
 }
 
