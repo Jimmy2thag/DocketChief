@@ -11,6 +11,94 @@ function corsHeaders(origin: string | null) {
   }
 }
 
+// Handler for OpenAI API
+async function handleOpenAI(
+  messages: { role: string; content: string }[],
+  model: string,
+  system: string,
+  apiKey: string
+) {
+  const payload = {
+    model,
+    messages: [{ role: 'system', content: system }, ...messages],
+    temperature: 0.2,
+  }
+
+  const r = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!r.ok) {
+    const txt = await r.text()
+    throw new Error(`OpenAI request failed: ${txt}`)
+  }
+  
+  const data = await r.json()
+  const content = data?.choices?.[0]?.message?.content ?? ''
+  const usage = data?.usage ?? null
+  
+  return { content, usage }
+}
+
+// Handler for Google Gemini API
+async function handleGemini(
+  messages: { role: string; content: string }[],
+  model: string,
+  system: string,
+  apiKey: string
+) {
+  // Convert messages to Gemini format
+  const geminiMessages = messages.map(msg => ({
+    role: msg.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: msg.content }]
+  }))
+
+  // Add system instruction as first user message if provided
+  if (system && system.trim().length > 0) {
+    geminiMessages.unshift({
+      role: 'user',
+      parts: [{ text: system }]
+    })
+  }
+
+  const payload = {
+    contents: geminiMessages,
+    generationConfig: {
+      temperature: 0.2,
+      topK: 40,
+      topP: 0.95,
+      maxOutputTokens: 8192,
+    }
+  }
+
+  const r = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    }
+  )
+
+  if (!r.ok) {
+    const txt = await r.text()
+    throw new Error(`Gemini request failed: ${txt}`)
+  }
+  
+  const data = await r.json()
+  const content = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  const usage = data?.usageMetadata ?? null
+  
+  return { content, usage }
+}
+
 serve(async (req) => {
   const origin = req.headers.get('origin')
   if (req.method === 'OPTIONS') {
@@ -18,15 +106,24 @@ serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get('OPENAI_API_KEY')
+    const body = await req.json().catch(() => ({}))
+
+    // Determine provider
+    const provider = typeof body?.provider === 'string' ? body.provider : 'openai'
+
+    // Get appropriate API key
+    const apiKey = provider === 'gemini' 
+      ? Deno.env.get('GEMINI_API_KEY')
+      : Deno.env.get('OPENAI_API_KEY')
+
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'OPENAI_API_KEY missing' }), {
+      return new Response(JSON.stringify({ 
+        error: `${provider === 'gemini' ? 'GEMINI_API_KEY' : 'OPENAI_API_KEY'} missing` 
+      }), {
         status: 500,
         headers: { 'content-type': 'application/json', ...corsHeaders(origin) },
       })
     }
-
-    const body = await req.json().catch(() => ({}))
 
     type RawMessage = { role?: string; content?: string }
 
@@ -63,35 +160,20 @@ serve(async (req) => {
       typeof body?.system === 'string' && body.system.trim().length > 0
         ? body.system
         : 'You are a precise legal drafting assistant. Write clearly, cite rules accurately, and never fabricate citations.'
-    const model = typeof body?.model === 'string' && body.model.trim().length > 0 ? body.model : 'gpt-4o-mini'
+    
+    // Set default model based on provider
+    const defaultModel = provider === 'gemini' ? 'gemini-pro' : 'gpt-4o-mini'
+    const model = typeof body?.model === 'string' && body.model.trim().length > 0 ? body.model : defaultModel
 
-    const payload = {
-      model,
-      messages: [{ role: 'system', content: system }, ...messages],
-      temperature: 0.2,
+    // Call appropriate AI service
+    let result
+    if (provider === 'gemini') {
+      result = await handleGemini(messages, model, system, apiKey)
+    } else {
+      result = await handleOpenAI(messages, model, system, apiKey)
     }
 
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(payload),
-    })
-
-    if (!r.ok) {
-      const txt = await r.text()
-      return new Response(JSON.stringify({ error: 'OpenAI request failed', details: txt }), {
-        status: 502,
-        headers: { 'content-type': 'application/json', ...corsHeaders(origin) },
-      })
-    }
-    const data = await r.json()
-    const content = data?.choices?.[0]?.message?.content ?? ''
-    const usage = data?.usage ?? null
-
-    return new Response(JSON.stringify({ content, usage }), {
+    return new Response(JSON.stringify(result), {
       headers: { 'content-type': 'application/json', ...corsHeaders(origin) },
     })
   } catch (e) {
