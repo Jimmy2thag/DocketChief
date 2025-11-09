@@ -302,11 +302,24 @@ Document:
       await gatherSupportingCases(normalized);
     } catch (err) {
       console.error('Document analysis failed', err);
-      setError(err instanceof Error ? err.message : 'Analysis failed. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Analysis failed. Please try again.';
+      setError(errorMessage);
+      
       if (documentText) {
         const fallback = buildFallbackAnalysis(documentText);
         setAnalysis(fallback);
-        setNotice('Analysis service unavailable. Showing local heuristic analysis.');
+        
+        // Provide more helpful notice based on the error
+        if (errorMessage.includes('not deployed')) {
+          setNotice('⚠️ Edge function not deployed. Contact admin to deploy legal-ai-chat function. Showing local analysis.');
+        } else if (errorMessage.includes('CORS')) {
+          setNotice('⚠️ CORS configuration issue. Check edge function settings. Showing local analysis.');
+        } else if (errorMessage.includes('Authentication')) {
+          setNotice('⚠️ Authentication issue. Check Supabase configuration. Showing local analysis.');
+        } else {
+          setNotice('⚠️ AI service unavailable. Showing local heuristic analysis.');
+        }
+        
         await gatherSupportingCases(fallback);
       }
     } finally {
