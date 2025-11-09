@@ -5,10 +5,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Bot, User, Loader2, AlertCircle, Clock } from 'lucide-react';
+import { Send, Bot, User, Loader2, AlertCircle, Clock, Brain, Settings } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AIService, ChatMessage } from '@/lib/aiService';
+import { ChatMessage } from '@/lib/aiService';
+import { docketChiefAgent } from '@/lib/agentService';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAgent } from '@/contexts/AgentContext';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+} from '@/components/ui/dropdown-menu';
+import { toast } from '@/components/ui/use-toast';
 
 interface Message {
   id: string;
@@ -27,6 +39,7 @@ export function AIChat() {
   const [rateLimitWarning, setRateLimitWarning] = useState<string>('');
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
+  const { memory, refreshMemory, resetMemory, updateConsents, agentEnabled, setAgentEnabled } = useAgent();
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -63,24 +76,33 @@ export function AIChat() {
         content: input
       });
 
-      // Call AI service
-      const aiResponse = await AIService.sendMessage(
-        conversationHistory,
-        aiProvider,
-        user?.email || 'anonymous'
-      );
+      // Call agent service (uses memory if enabled)
+      const agentResponse = agentEnabled
+        ? await docketChiefAgent.sendMessage(
+            conversationHistory,
+            aiProvider,
+            user?.email || 'anonymous'
+          )
+        : await import('@/lib/aiService').then(({ AIService }) =>
+            AIService.sendMessage(conversationHistory, aiProvider, user?.email || 'anonymous')
+          );
 
-      if (aiResponse.error === 'RATE_LIMITED') {
-        setRateLimitWarning(aiResponse.response);
+      if (agentResponse.error === 'RATE_LIMITED') {
+        setRateLimitWarning(agentResponse.response);
+      }
+
+      // Refresh memory after agent processes the message
+      if (agentEnabled) {
+        refreshMemory();
       }
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: aiResponse.response,
+        content: agentResponse.response,
         role: 'assistant',
         timestamp: new Date(),
-        aiProvider: aiResponse.provider,
-        error: !!aiResponse.error
+        aiProvider: agentResponse.provider,
+        error: !!agentResponse.error
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -107,6 +129,24 @@ export function AIChat() {
     setRateLimitWarning('');
   };
 
+  const handleResetMemory = () => {
+    resetMemory();
+    toast({
+      title: 'Memory Reset',
+      description: 'Agent memory has been cleared. Preferences will be learned anew.',
+    });
+  };
+
+  const handleToggleMemory = (enabled: boolean) => {
+    updateConsents({ remember_preferences: enabled });
+    toast({
+      title: enabled ? 'Memory Enabled' : 'Memory Disabled',
+      description: enabled 
+        ? 'Agent will now learn from your interactions.' 
+        : 'Agent will not remember preferences.',
+    });
+  };
+
   return (
     <Card className="h-[600px] flex flex-col">
       <CardHeader className="pb-3">
@@ -117,6 +157,12 @@ export function AIChat() {
             <Badge variant="outline" className="text-xs">
               Enhanced with GPT-4 & Gemini
             </Badge>
+            {agentEnabled && (
+              <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                <Brain className="h-3 w-3" />
+                Memory Active
+              </Badge>
+            )}
           </CardTitle>
           <div className="flex items-center gap-2">
             <Select value={aiProvider} onValueChange={(value: 'openai' | 'gemini') => setAiProvider(value)}>
@@ -128,9 +174,37 @@ export function AIChat() {
                 <SelectItem value="gemini">Gemini Pro</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" onClick={clearChat}>
-              Clear
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Agent Settings</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  checked={agentEnabled}
+                  onCheckedChange={setAgentEnabled}
+                >
+                  Enable Agent Mode
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={memory.consents.remember_preferences}
+                  onCheckedChange={handleToggleMemory}
+                  disabled={!agentEnabled}
+                >
+                  Remember Preferences
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={clearChat}>
+                  Clear Chat
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleResetMemory} disabled={!agentEnabled}>
+                  Reset Memory
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
         
@@ -150,8 +224,15 @@ export function AIChat() {
             <div className="flex items-center justify-center h-full text-muted-foreground">
               <div className="text-center max-w-md">
                 <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <h3 className="font-semibold mb-2">Legal AI Assistant Ready</h3>
-                <p className="text-sm mb-4">Powered by GPT-4 and Gemini Pro for comprehensive legal research assistance</p>
+                <h3 className="font-semibold mb-2">
+                  {agentEnabled ? 'Intelligent Legal Agent Ready' : 'Legal AI Assistant Ready'}
+                </h3>
+                <p className="text-sm mb-4">
+                  {agentEnabled 
+                    ? 'Memory-enabled agent learns from your interactions to provide personalized assistance'
+                    : 'Powered by GPT-4 and Gemini Pro for comprehensive legal research assistance'
+                  }
+                </p>
                 <div className="text-xs text-left bg-muted p-3 rounded-lg">
                   <strong>I can help with:</strong>
                   <ul className="mt-1 space-y-1">
@@ -160,6 +241,7 @@ export function AIChat() {
                     <li>• Motion & brief assistance</li>
                     <li>• Citation formatting</li>
                     <li>• Procedural guidance</li>
+                    {agentEnabled && <li>• Learning your preferences over time</li>}
                   </ul>
                 </div>
               </div>
