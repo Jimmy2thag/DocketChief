@@ -267,19 +267,70 @@ export async function searchOpinions(
   }
 }
 
+interface Court {
+  id: string;
+  name: string;
+  short_name?: string;
+  jurisdiction?: string;
+  position?: number;
+  citation_string?: string;
+  start_date?: string;
+  end_date?: string;
+  url?: string;
+  has_opinion_scraper?: boolean;
+  has_oral_argument_scraper?: boolean;
+}
+
 /**
  * Get detailed information about a specific court
+ * @param courtId - Court identifier (e.g., 'scotus', 'ca9', 'cal')
+ * @returns Court details
  */
-export async function getCourt(courtId: string) {
-  const url = `${BASE_URL}/courts/${courtId}/`;
-  
-  const response = await fetch(url, {
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch court ${courtId} (${response.status})`);
+export async function getCourt(courtId: string): Promise<Court> {
+  // Validate courtId input
+  if (!courtId || typeof courtId !== 'string' || courtId.trim().length === 0) {
+    throw new Error('Court ID is required and must be a non-empty string');
   }
 
-  return response.json();
+  // Sanitize courtId to prevent URL injection
+  const sanitizedCourtId = courtId.trim().replace(/[^a-z0-9-]/gi, '');
+  if (sanitizedCourtId.length === 0) {
+    throw new Error('Invalid court ID format');
+  }
+
+  try {
+    const url = `${BASE_URL}/courts/${sanitizedCourtId}/`;
+    
+    const response = await fetch(url, {
+      headers: getHeaders(),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      
+      // Handle rate limiting (429)
+      if (response.status === 429) {
+        throw new Error('Rate limit exceeded. CourtListener allows 5,000 queries per hour.');
+      }
+      
+      // Handle authentication errors (401, 403)
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Authentication failed. Please check your API token.');
+      }
+      
+      // Handle not found (404)
+      if (response.status === 404) {
+        throw new Error(`Court '${sanitizedCourtId}' not found`);
+      }
+      
+      throw new Error(
+        `Failed to fetch court ${sanitizedCourtId} (${response.status}): ${errorText}`
+      );
+    }
+
+    return (await response.json()) as Court;
+  } catch (error) {
+    console.error('CourtListener Court Fetch Error:', error);
+    throw error;
+  }
 }
