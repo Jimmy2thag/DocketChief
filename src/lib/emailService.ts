@@ -60,7 +60,7 @@ export class EmailService {
     }
   }
 
-  private async sendEmailAlert(alertData: AlertData): Promise<void> {
+  private async sendEmailAlert(alertData: AlertData): Promise<boolean> {
     try {
       const { data, error } = await supabase.functions.invoke('send-monitoring-alert', {
         body: alertData
@@ -75,11 +75,13 @@ export class EmailService {
       }
 
       console.log('Alert email sent successfully:', alertData.alertType);
+      return true;
     } catch (error) {
       console.error('Failed to send email alert:', error);
       
       // Fallback: store in localStorage for manual review
       this.storeFailedAlert(alertData, error);
+      return false;
     }
   }
 
@@ -113,6 +115,39 @@ export class EmailService {
 
   clearFailedAlerts(): void {
     localStorage.removeItem('failedAlerts');
+  }
+
+  async retryFailedAlerts(limit = 10): Promise<number> {
+    let failedAlerts: Array<AlertData & { failureReason?: string; failureTime?: string }>;
+    try {
+      failedAlerts = JSON.parse(localStorage.getItem('failedAlerts') || '[]');
+    } catch {
+      failedAlerts = [];
+    }
+
+    if (failedAlerts.length === 0) {
+      return 0;
+    }
+
+    const remaining: typeof failedAlerts = [];
+    let retried = 0;
+
+    for (const alert of failedAlerts) {
+      if (retried >= limit) {
+        remaining.push(alert);
+        continue;
+      }
+
+      const sent = await this.sendEmailAlert(alert);
+      if (!sent) {
+        remaining.push(alert);
+      }
+
+      retried += 1;
+    }
+
+    localStorage.setItem('failedAlerts', JSON.stringify(remaining));
+    return retried - remaining.length;
   }
 
   async testEmailService(): Promise<boolean> {

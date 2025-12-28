@@ -100,6 +100,10 @@ export const LegalResearchTool: React.FC = () => {
       if (filters.searchSource === 'all' || filters.searchSource === 'google-scholar') {
         try {
           const scholarResults = await searchGoogleScholar({
+      // Use the legal research service
+      const { data, error: searchError } = await supabase.functions
+        .invoke('legal-research', {
+          body: { 
             query: query.trim(),
             jurisdiction: filters.jurisdiction,
             dateRange: filters.dateRange,
@@ -163,6 +167,10 @@ export const LegalResearchTool: React.FC = () => {
         }
       } else {
         throw new Error('No results found from any source');
+        // API is not configured or returned an error
+        setError(data.error || 'Legal research API not available. Please configure COURTLISTENER_API_TOKEN environment variable.');
+        setResults([]);
+        setTotalResults(0);
       }
 
     } catch (err: unknown) {
@@ -225,6 +233,9 @@ export const LegalResearchTool: React.FC = () => {
       setResults(mockResults);
       setTotalResults(mockResults.length);
       setError('Using enhanced research database. For full integration, please check your connection.');
+      setError('Failed to connect to legal research service. Please try again later.');
+      setResults([]);
+      setTotalResults(0);
     } finally {
       setLoading(false);
     }

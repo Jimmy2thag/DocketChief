@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CreditCard, Lock } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface StripeCheckoutProps {
   amount: number;
@@ -24,6 +26,7 @@ export function StripeCheckout({ amount, planName, onSuccess, onCancel }: Stripe
     email: '',
     zip: ''
   });
+  const { user } = useAuth();
 
   const formatCardNumber = (value: string) => {
     const cleaned = value.replace(/\s/g, '').replace(/[^0-9]/gi, '');
@@ -45,16 +48,31 @@ export function StripeCheckout({ amount, planName, onSuccess, onCancel }: Stripe
     setError('');
 
     try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // In production, this would call Stripe API
-      console.log('Processing payment for:', { amount, planName, cardDetails });
-      
-      onSuccess();
-    } catch (err) {
-      setError('Payment failed. Please try again.');
-    } finally {
+      // Create a Stripe Checkout Session via our edge function
+      const { data, error: apiError } = await supabase.functions.invoke('stripe-payment', {
+        body: {
+          action: 'create_checkout_session',
+          amount: amount,
+          currency: 'usd',
+          planName: planName,
+          customerEmail: cardDetails.email,
+          userId: user?.id,
+          successUrl: `${window.location.origin}/payment-success`,
+          cancelUrl: `${window.location.origin}/payment-cancel`,
+        }
+      });
+
+      if (apiError) throw apiError;
+
+      if (data.success && data.url) {
+        // Redirect to Stripe Checkout
+        window.location.href = data.url;
+      } else {
+        throw new Error(data.error || 'Failed to create checkout session');
+      }
+    } catch (err: any) {
+      console.error('Payment error:', err);
+      setError(err.message || 'Payment processing failed. Please ensure Stripe is properly configured.');
       setIsProcessing(false);
     }
   };
