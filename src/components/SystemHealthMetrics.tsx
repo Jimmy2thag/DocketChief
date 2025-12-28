@@ -113,7 +113,13 @@ export const SystemHealthMetrics = ({ alerts }: SystemHealthMetricsProps) => {
   );
 };
 
-const MetricCard = ({ title, value, icon, trend, color }: any) => (
+const MetricCard = ({ title, value, icon, trend, color }: { 
+  title: string; 
+  value: string | number; 
+  icon: React.ReactNode; 
+  trend?: 'up' | 'down'; 
+  color: string 
+}) => (
   <Card>
     <CardContent className="pt-6">
       <div className="flex justify-between items-start">
@@ -134,7 +140,7 @@ const MetricCard = ({ title, value, icon, trend, color }: any) => (
   </Card>
 );
 
-const ResourceBar = ({ label, value, color }: any) => (
+const ResourceBar = ({ label, value, color }: { label: string; value: number; color: string }) => (
   <div>
     <div className="flex justify-between text-sm mb-1">
       <span>{label}</span>

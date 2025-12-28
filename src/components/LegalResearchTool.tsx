@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Search, BookOpen, ExternalLink, Plus, Loader2, Filter, Calendar, MapPin, FileText } from 'lucide-react';
+import { Search, BookOpen, ExternalLink, Plus, Loader2, Filter, Calendar, MapPin, FileText, Download } from 'lucide-react';
+import { Search, BookOpen, ExternalLink, Plus, Loader2, Filter, Calendar, MapPin, FileText, Library } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Input } from './ui/input';
@@ -9,6 +10,10 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { supabase } from '@/lib/supabase';
+import { ExportService } from '@/lib/exportService';
+import { CacheService } from '@/lib/cacheService';
+import { useToast } from '@/hooks/use-toast';
+import { searchGoogleScholar, getGoogleScholarSearchUrl, type GoogleScholarResult } from '@/lib/googleScholarService';
 
 interface ResearchResult {
   id: string;
@@ -23,6 +28,7 @@ interface ResearchResult {
   citeCount: number;
   relevanceScore: number;
   parsedCitation?: string;
+  source?: string;
 }
 
 interface SearchFilters {
@@ -33,9 +39,11 @@ interface SearchFilters {
   };
   caseType: string;
   citationFormat: string;
+  searchSource: 'all' | 'courtlistener' | 'google-scholar';
 }
 
 export const LegalResearchTool: React.FC = () => {
+  const { toast } = useToast();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ResearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -43,11 +51,13 @@ export const LegalResearchTool: React.FC = () => {
   const [briefText, setBriefText] = useState('');
   const [totalResults, setTotalResults] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedResults, setSelectedResults] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<SearchFilters>({
     jurisdiction: 'all',
     dateRange: { start: '', end: '' },
     caseType: 'all',
-    citationFormat: 'bluebook'
+    citationFormat: 'bluebook',
+    searchSource: 'all'
   });
 
   const jurisdictions = [
@@ -90,7 +100,38 @@ export const LegalResearchTool: React.FC = () => {
     setError(null);
 
     try {
+      // Try to get from cache first
+      const cacheKey = {
+        query: query.trim(),
+        jurisdiction: filters.jurisdiction,
+        dateRange: filters.dateRange,
+        caseType: filters.caseType,
+      };
+
+      const cachedResults = CacheService.get<{ results: ResearchResult[]; totalResults: number }>(
+        'legal-research',
+        cacheKey
+      );
+
+      if (cachedResults) {
+        setResults(cachedResults.results);
+        setTotalResults(cachedResults.totalResults);
+        setLoading(false);
+        toast({
+          title: "Results from cache",
+          description: "Loaded cached results for faster performance",
+        });
+        return;
+      }
+
       // Try to use the AI service for enhanced legal research
+      let allResults: ResearchResult[] = [];
+      
+      // Search Google Scholar if enabled
+      if (filters.searchSource === 'all' || filters.searchSource === 'google-scholar') {
+        try {
+          const scholarResults = await searchGoogleScholar({
+      // Use the legal research service
       const { data, error: searchError } = await supabase.functions
         .invoke('legal-research', {
           body: { 
@@ -98,21 +139,82 @@ export const LegalResearchTool: React.FC = () => {
             jurisdiction: filters.jurisdiction,
             dateRange: filters.dateRange,
             caseType: filters.caseType,
-            citationFormat: filters.citationFormat,
-            fullText: true
-          }
-        });
-
-      if (searchError) throw searchError;
-
-      if (data.success) {
-        setResults(data.results || []);
-        setTotalResults(data.totalResults || 0);
-      } else {
-        throw new Error(data.error || 'Search failed');
+            includeFederalCourts: true,
+            includeStateLaws: true
+          });
+          
+          // Convert GoogleScholarResult to ResearchResult
+          const convertedResults: ResearchResult[] = scholarResults.map(result => ({
+            ...result,
+            docketNumber: result.docketNumber || 'N/A',
+            status: result.status || 'Final',
+            source: 'google-scholar'
+          }));
+          
+          allResults = [...allResults, ...convertedResults];
+        } catch (scholarError) {
+          console.warn('Google Scholar search failed:', scholarError);
+        }
       }
 
-    } catch (err: any) {
+      // Try CourtListener if enabled
+      if (filters.searchSource === 'all' || filters.searchSource === 'courtlistener') {
+        try {
+          const { data, error: searchError } = await supabase.functions
+            .invoke('legal-research', {
+              body: { 
+                query: query.trim(),
+                jurisdiction: filters.jurisdiction,
+                dateRange: filters.dateRange,
+                caseType: filters.caseType,
+                citationFormat: filters.citationFormat,
+                fullText: true
+              }
+            });
+
+      if (data.success) {
+        const searchResults = {
+          results: data.results || [],
+          totalResults: data.totalResults || 0,
+        };
+        setResults(searchResults.results);
+        setTotalResults(searchResults.totalResults);
+        
+        // Cache the results for 5 minutes
+        CacheService.set('legal-research', cacheKey, searchResults);
+          if (!searchError && data.success) {
+            const courtListenerResults = (data.results || []).map((result: ResearchResult) => ({
+              ...result,
+              source: 'courtlistener'
+            }));
+            allResults = [...allResults, ...courtListenerResults];
+          }
+        } catch (courtListenerError) {
+          console.warn('CourtListener search failed:', courtListenerError);
+        }
+      }
+
+      // If we have results from any source, use them
+      if (allResults.length > 0) {
+        // Sort by relevance score
+        allResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
+        setResults(allResults);
+        setTotalResults(allResults.length);
+        
+        // Set informational message about sources
+        const sources = [...new Set(allResults.map(r => r.source))];
+        if (sources.length > 1) {
+          setError(`Results from multiple sources: ${sources.join(', ')}. Click "View Case" to see original source.`);
+        }
+      } else {
+        throw new Error('No results found from any source');
+        // API is not configured or returned an error
+        setError(data.error || 'Legal research API not available. Please configure COURTLISTENER_API_TOKEN environment variable.');
+        setResults([]);
+        setTotalResults(0);
+      }
+
+    } catch (err: unknown) {
       console.error('Research error:', err);
       
       // Fallback to enhanced mock data with AI-powered analysis
@@ -129,7 +231,8 @@ export const LegalResearchTool: React.FC = () => {
           status: 'Final',
           citeCount: 15847,
           relevanceScore: 92,
-          url: 'https://scholar.google.com/scholar_case?case=hadley-baxendale'
+          url: 'https://scholar.google.com/scholar_case?case=hadley-baxendale',
+          source: 'mock-data'
         },
         {
           id: '2',
@@ -143,7 +246,8 @@ export const LegalResearchTool: React.FC = () => {
           status: 'Final',
           citeCount: 12453,
           relevanceScore: 88,
-          url: 'https://scholar.google.com/scholar_case?case=carlill-carbolic'
+          url: 'https://scholar.google.com/scholar_case?case=carlill-carbolic',
+          source: 'mock-data'
         },
         {
           id: '3',
@@ -157,7 +261,8 @@ export const LegalResearchTool: React.FC = () => {
           status: 'Final',
           citeCount: 18923,
           relevanceScore: 85,
-          url: 'https://scholar.google.com/scholar_case?case=donoghue-stevenson'
+          url: 'https://scholar.google.com/scholar_case?case=donoghue-stevenson',
+          source: 'mock-data'
         }
       ].filter(result => {
         const searchTerm = query.toLowerCase();
@@ -166,9 +271,29 @@ export const LegalResearchTool: React.FC = () => {
                result.citation.toLowerCase().includes(searchTerm);
       });
 
+      const searchResults = {
+        results: mockResults,
+        totalResults: mockResults.length,
+      };
+      setResults(searchResults.results);
+      setTotalResults(searchResults.totalResults);
+      
+      // Cache mock results too
+      const cacheKey = {
+        query: query.trim(),
+        jurisdiction: filters.jurisdiction,
+        dateRange: filters.dateRange,
+        caseType: filters.caseType,
+      };
+      CacheService.set('legal-research', cacheKey, searchResults);
+      
+      setError('Using enhanced research database. For full CourtListener integration, please check your connection.');
       setResults(mockResults);
       setTotalResults(mockResults.length);
-      setError('Using enhanced research database. For full CourtListener integration, please check your connection.');
+      setError('Using enhanced research database. For full integration, please check your connection.');
+      setError('Failed to connect to legal research service. Please try again later.');
+      setResults([]);
+      setTotalResults(0);
     } finally {
       setLoading(false);
     }
@@ -180,13 +305,111 @@ export const LegalResearchTool: React.FC = () => {
     setBriefText(prev => prev + briefEntry);
   };
 
+  const toggleResultSelection = (id: string) => {
+    const newSelection = new Set(selectedResults);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
+    } else {
+      newSelection.add(id);
+    }
+    setSelectedResults(newSelection);
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      if (selectedResults.size === 0 && results.length > 0) {
+        // Export all results if none selected
+        toast({
+          title: "Exporting all results",
+          description: "No results selected, exporting all visible results",
+        });
+        
+        const exportData = results.map(result => ({
+          title: result.title,
+          content: result.summary,
+          metadata: {
+            citation: result.parsedCitation || result.citation,
+            court: result.court,
+            date: result.date,
+            docketNumber: result.docketNumber,
+            citeCount: result.citeCount.toString(),
+          }
+        }));
+        
+        await ExportService.exportMultipleToPDF(exportData);
+      } else {
+        // Export selected results
+        const exportData = results
+          .filter(r => selectedResults.has(r.id))
+          .map(result => ({
+            title: result.title,
+            content: result.summary,
+            metadata: {
+              citation: result.parsedCitation || result.citation,
+              court: result.court,
+              date: result.date,
+              docketNumber: result.docketNumber,
+              citeCount: result.citeCount.toString(),
+            }
+          }));
+        
+        await ExportService.exportMultipleToPDF(exportData);
+      }
+      
+      toast({
+        title: "Export successful",
+        description: "PDF downloaded successfully",
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export failed",
+        description: "Failed to generate PDF. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleExportDOCX = async (result: ResearchResult) => {
+    try {
+      await ExportService.exportToDOCX({
+        title: result.title,
+        content: result.summary,
+        metadata: {
+          citation: result.parsedCitation || result.citation,
+          court: result.court,
+          date: result.date,
+          docketNumber: result.docketNumber,
+          citeCount: result.citeCount.toString(),
+        }
+      });
+      
+      toast({
+        title: "Export successful",
+        description: "DOCX downloaded successfully",
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export failed",
+        description: "Failed to generate DOCX. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getCacheStats = () => {
+    return CacheService.getStats();
+  };
+
   const getRelevanceColor = (score: number) => {
     if (score >= 80) return 'bg-green-100 text-green-800';
     if (score >= 60) return 'bg-yellow-100 text-yellow-800';
     return 'bg-gray-100 text-gray-800';
   };
 
-  const handleFilterChange = (key: keyof SearchFilters, value: any) => {
+  const handleFilterChange = (key: keyof SearchFilters, value: string | number | boolean) => {
+  const handleFilterChange = (key: keyof SearchFilters, value: SearchFilters[keyof SearchFilters]) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
@@ -194,13 +417,13 @@ export const LegalResearchTool: React.FC = () => {
     <div className="max-w-7xl mx-auto p-6 space-y-6">
       <div>
         <h1 className="text-3xl font-bold mb-2">Legal Research</h1>
-        <p className="text-gray-600">Search comprehensive legal databases with advanced filters</p>
+        <p className="text-gray-600">Search Google Scholar (Federal & State Courts), CourtListener, and other legal databases with advanced filters</p>
       </div>
 
       {/* Search Section */}
       <Card className="p-6">
         <div className="space-y-4">
-          <div className="flex gap-4">
+          <div className="flex gap-2">
             <div className="flex-1">
               <Input
                 placeholder="Enter your legal research query (e.g., 'contract breach damages')"
@@ -224,11 +447,39 @@ export const LegalResearchTool: React.FC = () => {
               )}
               Search
             </Button>
+            {query.trim() && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => window.open(getGoogleScholarSearchUrl(query.trim()), '_blank')}
+                title="Open in Google Scholar"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open in Scholar
+              </Button>
+            )}
           </div>
 
           <Collapsible open={showFilters}>
             <CollapsibleContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 pt-4 border-t">
+                <div>
+                  <label className="text-sm font-medium mb-2 flex items-center gap-2">
+                    <Library className="h-4 w-4" />
+                    Search Source
+                  </label>
+                  <Select value={filters.searchSource} onValueChange={(value: 'all' | 'courtlistener' | 'google-scholar') => handleFilterChange('searchSource', value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sources</SelectItem>
+                      <SelectItem value="google-scholar">Google Scholar (Federal & State)</SelectItem>
+                      <SelectItem value="courtlistener">CourtListener</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div>
                   <label className="text-sm font-medium mb-2 flex items-center gap-2">
                     <MapPin className="h-4 w-4" />
@@ -310,10 +561,29 @@ export const LegalResearchTool: React.FC = () => {
               <BookOpen className="h-5 w-5" />
               Research Results
             </h2>
-            {totalResults > 0 && (
-              <Badge variant="secondary">{totalResults.toLocaleString()} total results</Badge>
-            )}
+            <div className="flex items-center gap-2">
+              {totalResults > 0 && (
+                <>
+                  <Badge variant="secondary">{totalResults.toLocaleString()} results</Badge>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={handleExportPDF}
+                    disabled={results.length === 0}
+                  >
+                    <Download className="h-3 w-3 mr-1" />
+                    Export PDF
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
+
+          {results.length > 0 && (
+            <div className="text-xs text-gray-500 flex items-center gap-4">
+              <span>Cache: {getCacheStats().hits} hits, {getCacheStats().misses} misses ({getCacheStats().hitRate}% hit rate)</span>
+            </div>
+          )}
 
           {results.length === 0 && !loading && (
             <Card className="p-8 text-center">
@@ -327,7 +597,14 @@ export const LegalResearchTool: React.FC = () => {
             <Card key={result.id} className="p-4 hover:shadow-md transition-shadow">
               <div className="flex justify-between items-start mb-3">
                 <h3 className="font-semibold text-sm pr-4">{result.title}</h3>
-                <div className="flex gap-2 flex-shrink-0">
+                <div className="flex gap-2 flex-shrink-0 flex-wrap">
+                  {result.source && (
+                    <Badge variant="secondary" className="text-xs">
+                      {result.source === 'google-scholar' ? 'Google Scholar' : 
+                       result.source === 'courtlistener' ? 'CourtListener' : 
+                       result.source}
+                    </Badge>
+                  )}
                   <Badge className={getRelevanceColor(result.relevanceScore)}>
                     {Math.round(result.relevanceScore)}% match
                   </Badge>
@@ -352,6 +629,14 @@ export const LegalResearchTool: React.FC = () => {
                 >
                   <Plus className="h-3 w-3 mr-1" />
                   Add to Brief
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => handleExportDOCX(result)}
+                >
+                  <Download className="h-3 w-3 mr-1" />
+                  Export DOCX
                 </Button>
                 {result.url && (
                   <Button size="sm" variant="outline" asChild>

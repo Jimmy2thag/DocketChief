@@ -8,7 +8,7 @@ export type ChatRequest = {
   provider?: AIProvider
   userIdentifier?: string
 }
-export type ChatResponse = { content: string; usage?: any }
+export type ChatResponse = { content: string; usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } }
 
 type AIProvider = 'openai' | 'gemini'
 
@@ -120,10 +120,41 @@ export const AIService = {
 }
 
 export async function legalAiChat(req: ChatRequest): Promise<ChatResponse> {
-  const { data, error } = await supabase.functions.invoke('legal-ai-chat', { body: req })
-  if (error) {
-    console.error('[legal-ai-chat] error', error)
-    throw new Error(error.message || 'AI function failed')
+  try {
+    const { data, error } = await supabase.functions.invoke('legal-ai-chat', { body: req })
+    
+    if (error) {
+      console.error('[legal-ai-chat] Supabase function error:', error)
+      
+      // Provide more specific error messages based on the error type
+      if (error.message?.includes('404') || error.message?.includes('not found')) {
+        throw new Error('Edge function not deployed. Please deploy the legal-ai-chat function to Supabase.')
+      }
+      if (error.message?.includes('CORS') || error.message?.includes('cors')) {
+        throw new Error('CORS error. Check ALLOWED_ORIGINS in edge function environment variables.')
+      }
+      if (error.message?.includes('unauthorized') || error.message?.includes('401')) {
+        throw new Error('Authentication failed. Check Supabase configuration.')
+      }
+      
+      throw new Error(`Edge function error: ${error.message || 'Unknown error'}`)
+    }
+    
+    if (!data) {
+      throw new Error('No response from edge function')
+    }
+    
+    return data as ChatResponse
+  } catch (err) {
+    console.error('[legal-ai-chat] Request failed:', err)
+    
+    // If it's already our custom error, rethrow it
+    if (err instanceof Error && err.message.includes('Edge function')) {
+      throw err
+    }
+    
+    // Otherwise, wrap it with more context
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    throw new Error(`Failed to send request to Edge Function: ${message}`)
   }
-  return data as ChatResponse
 }
