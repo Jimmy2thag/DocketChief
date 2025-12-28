@@ -117,11 +117,26 @@ export class EmailService {
     localStorage.removeItem('failedAlerts');
   }
 
+  /**
+   * Attempts to resend alerts that previously failed and were stored in `localStorage`.
+   *
+   * Reads the `failedAlerts` entry from `localStorage`, retries sending up to the specified
+   * limit of alerts, and then writes back any remaining failures. Successfully resent alerts
+   * are removed from storage.
+   *
+   * @param {number} [limit=10] Maximum number of failed alerts to retry in a single call.
+   * @returns {Promise<number>} Promise resolving to the number of alerts that were
+   * successfully resent.
+   */
   async retryFailedAlerts(limit = 10): Promise<number> {
     let failedAlerts: Array<AlertData & { failureReason?: string; failureTime?: string }>;
     try {
       failedAlerts = JSON.parse(localStorage.getItem('failedAlerts') || '[]');
-    } catch {
+    } catch (error) {
+      console.error(
+        '[EmailService] Failed to parse failedAlerts from localStorage; corrupted data will be ignored:',
+        error
+      );
       failedAlerts = [];
     }
 
@@ -130,24 +145,27 @@ export class EmailService {
     }
 
     const remaining: typeof failedAlerts = [];
-    let retried = 0;
+    let attempted = 0;
+    let successCount = 0;
 
     for (const alert of failedAlerts) {
-      if (retried >= limit) {
+      if (attempted >= limit) {
         remaining.push(alert);
         continue;
       }
 
       const sent = await this.sendEmailAlert(alert);
-      if (!sent) {
+      if (sent) {
+        successCount += 1;
+      } else {
         remaining.push(alert);
       }
 
-      retried += 1;
+      attempted += 1;
     }
 
     localStorage.setItem('failedAlerts', JSON.stringify(remaining));
-    return retried - remaining.length;
+    return successCount;
   }
 
   async testEmailService(): Promise<boolean> {
