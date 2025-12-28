@@ -47,9 +47,21 @@ let alertReviewTimer: number | null = null;
 let failedAlertTimer: number | null = null;
 
 function getStoredAlerts(): StoredAlert[] {
+  if (typeof localStorage === 'undefined') {
+    console.error(
+      '[aiBackgroundAgent] localStorage is not available; returning no stored alerts.'
+    );
+    return [];
+  }
+
   try {
-    return JSON.parse(localStorage.getItem(ALERTS_STORAGE_KEY) || '[]');
-  } catch {
+    const raw = localStorage.getItem(ALERTS_STORAGE_KEY) || '[]';
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error(
+      '[aiBackgroundAgent] Failed to read or parse stored alerts from localStorage:',
+      error
+    );
     return [];
   }
 }
