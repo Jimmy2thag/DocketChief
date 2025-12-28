@@ -16,7 +16,7 @@ export interface Alert {
   severity: 'critical' | 'high' | 'medium' | 'low';
   title: string;
   message: string;
-  details?: any;
+  details?: Record<string, unknown>;
   status: 'open' | 'resolved' | 'investigating';
   resolved_at?: string;
   resolved_by?: string;
@@ -153,7 +153,7 @@ export const AlertDashboard = () => {
   );
 };
 
-const StatCard = ({ title, value, icon, color = "text-blue-600" }: any) => (
+const StatCard = ({ title, value, icon, color = "text-blue-600" }: { title: string; value: string | number; icon: React.ReactNode; color?: string }) => (
   <Card>
     <CardContent className="pt-6">
       <div className="flex justify-between items-start">
