@@ -165,8 +165,12 @@ export function startAIBackgroundAgent(config: Partial<AgentConfig> = {}) {
     return stopAIBackgroundAgent;
   }
 
-  reviewAlerts(mergedConfig);
-  retryFailedAlerts();
+  reviewAlerts(mergedConfig).catch((error) =>
+    console.error('AI background agent reviewAlerts error:', error)
+  );
+  retryFailedAlerts().catch((error) =>
+    console.error('AI background agent retryFailedAlerts error:', error)
+  );
 
   alertReviewTimer = window.setInterval(() => reviewAlerts(mergedConfig), mergedConfig.alertReviewIntervalMs);
   failedAlertTimer = window.setInterval(
