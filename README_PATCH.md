@@ -11,6 +11,7 @@ Frontend (Vite):
 Supabase Edge Function secrets:
 - `OPENAI_API_KEY=sk-...`
 - `GOOGLE_AI_API_KEY=your_gemini_key...` (Optional: for Google Gemini AI support)
+- `GOOGLE_AI_API_KEY=...` (optional, for Gemini support)
 - `ALLOWED_ORIGINS=https://docketchief.com,https://www.docketchief.com`
 
 2) **Deploy edge function**
@@ -20,6 +21,9 @@ supabase functions deploy legal-ai-chat
 supabase secrets set OPENAI_API_KEY=sk-... ALLOWED_ORIGINS=https://docketchief.com,https://www.docketchief.com
 # Optional: Enable Gemini AI
 supabase secrets set GOOGLE_AI_API_KEY=your_gemini_key...
+supabase secrets set OPENAI_API_KEY=sk-... ALLOWED_ORIGINS=https://docketchief.com,https://www.docketchief.com
+# Optional: Add Gemini support
+supabase secrets set GOOGLE_AI_API_KEY=your-gemini-key
 ```
 
 3) **Install & build**
