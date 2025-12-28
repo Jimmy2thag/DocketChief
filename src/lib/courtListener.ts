@@ -1,8 +1,5 @@
 const BASE_URL = 'https://www.courtlistener.com/api/rest/v4';
 
-// Your CourtListener API Token
-const API_TOKEN = '1d84f738537952f2fc4fb36674e7279d36c23552';
-
 export interface CourtListenerResult {
   id: number;
   absolute_url: string;
@@ -11,10 +8,24 @@ export interface CourtListenerResult {
   docket_number: string;
   court: string;
   court_id: string;
-  citation: string[];
+  citation: Citation[];
   snippet: string;
   cite_count?: number;
   precedential_status?: string;
+}
+
+interface Citation {
+  volume?: string;
+  reporter?: string;
+  page?: string;
+  type?: string;
+}
+
+interface SubOpinion {
+  id: number;
+  type?: string;
+  download_url?: string;
+  local_path?: string;
 }
 
 interface OpinionCluster {
@@ -29,8 +40,8 @@ interface OpinionCluster {
     court: string;
   };
   scdb_id?: string;
-  citations?: any[];
-  sub_opinions?: any[];
+  citations?: Citation[];
+  sub_opinions?: SubOpinion[];
   precedential_status?: string;
   cite_count?: number;
   snippet?: string;
@@ -43,14 +54,46 @@ interface CourtListenerAPIResponse {
   results: OpinionCluster[];
 }
 
+interface SearchResult {
+  id: number;
+  absolute_url: string;
+  caseName?: string;
+  case_name?: string;
+  dateFiled?: string;
+  date_filed?: string;
+  docketNumber?: string;
+  docket_number?: string;
+  court?: string;
+  court_id?: string;
+  citation?: Citation[];
+  snippet?: string;
+  citeCount?: number;
+  cite_count?: number;
+  status?: string;
+  precedential_status?: string;
+}
+
+interface SearchAPIResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: SearchResult[];
+}
+
 /**
  * Get authentication headers for CourtListener API
  * Format: Authorization: Token <token>
  */
 const getHeaders = (): Record<string, string> => {
+  const apiToken = import.meta.env.VITE_COURTLISTENER_API_TOKEN;
+  
+  if (!apiToken) {
+    throw new Error('CourtListener API token is not configured. Please set VITE_COURTLISTENER_API_TOKEN in your environment.');
+  }
+
   return {
     'Accept': 'application/json',
-    'Authorization': `Token ${API_TOKEN}`,
+    'Authorization': `Token ${apiToken}`,
     'User-Agent': 'DocketChief/1.0 (+https://docketchief.com)',
   };
 };
@@ -189,9 +232,9 @@ export async function searchOpinions(
       throw new Error(`CourtListener search failed: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as SearchAPIResponse;
 
-    return (data.results || []).map((result: any) => ({
+    return (data.results || []).map((result) => ({
       id: result.id,
       absolute_url: result.absolute_url || '',
       case_name: result.caseName || result.case_name || 'Unnamed Case',
