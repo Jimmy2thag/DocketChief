@@ -17,7 +17,7 @@ interface SearchFilters {
 }
 
 interface SearchResult {
-  id: string;
+  id: number;
   title: string;
   court: string;
   court_id: string;

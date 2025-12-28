@@ -1,7 +1,7 @@
-const BASE_URL = 'https://www.courtlistener.com/api/rest/v4/search/';
+const BASE_URL = 'https://www.courtlistener.com/api/rest/v4';
 
 export interface CourtListenerResult {
-  id: string;
+  id: number;
   absolute_url: string;
   caseName: string;
   date_filed: string;
@@ -11,55 +11,126 @@ export interface CourtListenerResult {
   snippet: string;
 }
 
-interface CourtListenerResponse {
-  results: Array<{
-    id: string;
-    absolute_url: string;
-    caseNameShort?: string;
-    caseName?: string;
-    dateFiled?: string;
-    docketNumber?: string;
-    court?: string;
-    citation?: string[];
-    snippet?: string;
-  }>;
+interface OpinionCluster {
+  id: number;
+  absolute_url: string;
+  case_name: string;
+  date_filed: string;
+  docket: {
+    docket_number?: string;
+  };
+  court: string;
+  citations: any[];
+  snippet?: string;
 }
 
-const DEFAULT_HEADERS: Record<string, string> = {
-  Accept: 'application/json',
-  'User-Agent': 'DocketChief/1.0 (+https://docketchief.example)',
+interface CourtListenerAPIResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: OpinionCluster[];
+}
+
+const getHeaders = (): Record<string, string> => {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'User-Agent': 'DocketChief/1.0 (+https://docketchief.com)',
+  };
+  
+  const token = import.meta.env.VITE_COURTLISTENER_API_TOKEN;
+  if (token) {
+    headers['Authorization'] = `Token ${token}`;
+  }
+  
+  return headers;
 };
 
-export async function searchCourtListener(query: string, options?: { jurisdiction?: string; limit?: number }) {
+export async function searchCourtListener(
+  query: string, 
+  options?: { jurisdiction?: string; limit?: number }
+): Promise<CourtListenerResult[]> {
   const params = new URLSearchParams({
-    q: query,
-    type: 'o',
-    page_size: String(options?.limit ?? 5),
-    order_by: 'score desc',
+    case_name: query,
+    order_by: '-date_filed',
   });
+
+  if (options?.limit) {
+    params.set('page_size', String(options.limit));
+  } else {
+    params.set('page_size', '5');
+  }
 
   if (options?.jurisdiction) {
     params.set('court', options.jurisdiction);
   }
 
-  const response = await fetch(`${BASE_URL}?${params.toString()}`, {
-    headers: DEFAULT_HEADERS,
+  // Use the clusters endpoint for case opinions
+  const url = `${BASE_URL}/clusters/?${params.toString()}`;
+
+  const response = await fetch(url, {
+    headers: getHeaders(),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `CourtListener API request failed with status ${response.status}: ${errorText}`
+    );
+  }
+
+  const data = (await response.json()) as CourtListenerAPIResponse;
+
+  return (data.results || []).map((cluster) => ({
+    id: cluster.id,
+    absolute_url: cluster.absolute_url,
+    caseName: cluster.case_name || 'Unnamed Case',
+    date_filed: cluster.date_filed || '',
+    docket_number: cluster.docket?.docket_number || '',
+    court: cluster.court || '',
+    citation: cluster.citations || [],
+    snippet: cluster.snippet || '',
+  }));
+}
+
+// Alternative search using the opinions endpoint
+export async function searchOpinions(
+  query: string,
+  options?: { court?: string; limit?: number }
+): Promise<CourtListenerResult[]> {
+  const params = new URLSearchParams();
+  
+  if (query) {
+    params.set('q', query);
+  }
+  
+  if (options?.limit) {
+    params.set('page_size', String(options.limit));
+  }
+  
+  if (options?.court) {
+    params.set('court', options.court);
+  }
+
+  const url = `${BASE_URL}/opinions/?${params.toString()}`;
+
+  const response = await fetch(url, {
+    headers: getHeaders(),
   });
 
   if (!response.ok) {
     throw new Error(`CourtListener request failed with status ${response.status}`);
   }
 
-  const data = (await response.json()) as CourtListenerResponse;
-
-  return (data.results || []).map((result) => ({
-    id: result.id,
-    absolute_url: result.absolute_url,
-    caseName: result.caseName || result.caseNameShort || 'Unnamed Case',
-    date_filed: result.dateFiled || '',
-    docket_number: result.docketNumber || '',
-    court: result.court || '',
-    citation: result.citation || [],
-    snippet: result.snippet || '',
-  })) as CourtListenerResult[];
+  const data = await response.json();
+  
+  return (data.results || []).map((opinion: any) => ({
+    id: opinion.id,
+    absolute_url: opinion.absolute_url || '',
+    caseName: opinion.cluster?.case_name || 'Unnamed Case',
+    date_filed: opinion.cluster?.date_filed || '',
+    docket_number: opinion.cluster?.docket?.docket_number || '',
+    court: opinion.cluster?.court || '',
+    citation: opinion.cluster?.citations || [],
+    snippet: opinion.plain_text?.substring(0, 200) || '',
+  }));
 }
