@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/lib/supabase';
 import CitationFormatter from './CitationFormatter';
 interface SearchResult {
   id: string;
@@ -56,84 +57,53 @@ export default function LegalDatabaseSearch() {
 
     setLoading(true);
     try {
-      // Real CourtListener API integration
-      // Note: Edge function would be called here in production
-      // const { data, error } = await supabase.functions.invoke('courtlistener-search', {
-      //   body: { 
-      //     searchParams: {
-      //       query: filters.query,
-      //       type: 'o', // opinions
-      //       court: filters.court,
-      //       filed_after: filters.dateFrom,
-      //       filed_before: filters.dateTo,
-      //       order_by: 'score desc'
-      //     }
-      //   }
-      // });
-
-      // Simulate real API response structure for demonstration
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const mockResults: SearchResult[] = [
-        {
-          id: '1',
-          title: `${filters.query} v. Board of Education`,
-          court: 'Supreme Court of the United States',
-          date: '1954-05-17',
-          citation: '347 U.S. 483 (1954)',
-          snippet: `In this landmark case involving ${filters.query}, we conclude that in the field of public education, the doctrine of "separate but equal" has no place. Separate educational facilities are inherently unequal and violate the Equal Protection Clause of the Fourteenth Amendment.`,
-          url: 'https://courtlistener.com/opinion/103/brown-v-board-of-education/',
-          precedential_status: 'Published',
-          docket_number: 'No. 1'
-        },
-        {
-          id: '2',
-          title: `United States v. ${filters.query}`,
-          court: 'Supreme Court of the United States',
-          date: '1966-06-13',
-          citation: '384 U.S. 436 (1966)',
-          snippet: `This case establishes that ${filters.query} must be clearly informed of constitutional rights. The person in custody must, prior to interrogation, be clearly informed that he has the right to remain silent, and that anything he says will be used against him in court.`,
-          url: 'https://courtlistener.com/opinion/107/miranda-v-arizona/',
-          precedential_status: 'Published',
-          docket_number: 'No. 759'
-        },
-        {
-          id: '3',
-          title: `${filters.query} Corp. v. Securities and Exchange Commission`,
-          court: 'U.S. Court of Appeals for the Second Circuit',
-          date: '2023-08-15',
-          citation: '2023 U.S. App. LEXIS 12345',
-          snippet: `Recent appellate decision addressing ${filters.query} in the context of securities regulation and corporate compliance. The court held that disclosure requirements under federal securities law apply to all material information that could affect investor decisions.`,
-          url: 'https://courtlistener.com/opinion/456789/corp-v-sec/',
-          precedential_status: 'Published',
-          docket_number: 'No. 22-1234'
+      // Call the CourtListener search edge function
+      const { data, error } = await supabase.functions.invoke('courtlistener-search', {
+        body: { 
+          searchParams: {
+            query: filters.query,
+            type: 'o', // opinions
+            court: filters.court,
+            filed_after: filters.dateFrom,
+            filed_before: filters.dateTo,
+            order_by: 'score desc'
+          }
         }
-      ];
-
-      // Apply basic filtering
-      let filteredResults = mockResults;
-      if (filters.jurisdiction) {
-        filteredResults = filteredResults.filter(result => 
-          result.court.toLowerCase().includes(filters.jurisdiction.toLowerCase())
-        );
-      }
-      if (filters.court) {
-        filteredResults = filteredResults.filter(result => 
-          result.court.toLowerCase().includes(filters.court.toLowerCase())
-        );
-      }
-
-      setResults(filteredResults);
-      setTotalResults(filteredResults.length);
-      
-      toast({
-        title: "Search Complete",
-        description: `Found ${filteredResults.length} legal precedents using CourtListener API`
       });
-    } catch (error) {
+
+      if (error) throw error;
+
+      if (data.success) {
+        // Transform results to match component interface
+        const transformedResults: SearchResult[] = (data.results || []).map((result: any) => ({
+          id: result.id,
+          title: result.title,
+          court: result.court,
+          date: result.date_filed,
+          citation: result.citation.length > 0 ? result.citation[0] : 'No citation',
+          snippet: result.snippet,
+          url: result.absolute_url ? `https://www.courtlistener.com${result.absolute_url}` : '',
+          precedential_status: result.status,
+          docket_number: result.docket_number,
+        }));
+
+        setResults(transformedResults);
+        setTotalResults(data.count || transformedResults.length);
+        
+        toast({
+          title: "Search Complete",
+          description: `Found ${data.count || transformedResults.length} legal precedents`
+        });
+      } else {
+        throw new Error(data.error || 'Search failed');
+      }
+    } catch (error: any) {
+      console.error('Search error:', error);
+      setResults([]);
+      setTotalResults(0);
       toast({
         title: "Search Error",
-        description: "Failed to search CourtListener database. Please try again.",
+        description: error.message || "Failed to search legal database. Please ensure CourtListener API is configured.",
         variant: "destructive"
       });
     } finally {
