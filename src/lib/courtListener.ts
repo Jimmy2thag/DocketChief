@@ -24,12 +24,36 @@ interface OpinionCluster {
   snippet?: string;
 }
 
+interface Opinion {
+  id: number;
+  absolute_url: string;
+  cluster?: {
+    case_name?: string;
+    date_filed?: string;
+    docket?: {
+      docket_number?: string;
+    };
+    court?: string;
+    citations?: any[];
+  };
+  plain_text?: string;
+}
+
 interface CourtListenerAPIResponse {
   count: number;
   next: string | null;
   previous: string | null;
   results: OpinionCluster[];
 }
+
+interface OpinionAPIResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: Opinion[];
+}
+
+const SNIPPET_MAX_LENGTH = 200;
 
 const getHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = {
@@ -118,12 +142,15 @@ export async function searchOpinions(
   });
 
   if (!response.ok) {
-    throw new Error(`CourtListener request failed with status ${response.status}`);
+    const errorText = await response.text();
+    throw new Error(
+      `CourtListener API request failed with status ${response.status}: ${errorText}`
+    );
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as OpinionAPIResponse;
   
-  return (data.results || []).map((opinion: any) => ({
+  return (data.results || []).map((opinion) => ({
     id: opinion.id,
     absolute_url: opinion.absolute_url || '',
     caseName: opinion.cluster?.case_name || 'Unnamed Case',
@@ -131,6 +158,6 @@ export async function searchOpinions(
     docket_number: opinion.cluster?.docket?.docket_number || '',
     court: opinion.cluster?.court || '',
     citation: opinion.cluster?.citations || [],
-    snippet: opinion.plain_text?.substring(0, 200) || '',
+    snippet: opinion.plain_text?.substring(0, SNIPPET_MAX_LENGTH) || '',
   }));
 }
