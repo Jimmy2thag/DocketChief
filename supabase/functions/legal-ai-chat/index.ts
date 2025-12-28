@@ -35,12 +35,65 @@ async function handleOpenAI(
 
   if (!r.ok) {
     const txt = await r.text()
+    return new Response(JSON.stringify({ error: 'OpenAI request failed', details: txt }), {
+      status: 502,
+      headers: { 'content-type': 'application/json', ...corsHeaders(origin) },
+    })
     throw new Error(`OpenAI request failed: ${txt}`)
   }
   
   const data = await r.json()
   const content = data?.choices?.[0]?.message?.content ?? ''
   const usage = data?.usage ?? null
+
+  return new Response(JSON.stringify({ content, usage }), {
+    headers: { 'content-type': 'application/json', ...corsHeaders(origin) },
+  })
+}
+
+async function handleGeminiRequest(
+  messages: { role: string; content: string }[],
+  system: string,
+  model: string,
+  origin: string | null
+) {
+  const apiKey = Deno.env.get('GOOGLE_AI_API_KEY')
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: 'GOOGLE_AI_API_KEY missing' }), {
+      status: 500,
+      headers: { 'content-type': 'application/json', ...corsHeaders(origin) },
+    })
+  }
+
+  // Convert messages to Gemini format
+  // Gemini uses 'user' and 'model' roles, and requires a specific format
+  const contents = []
+  
+  // Add system message as first user message if provided
+  if (system && system !== 'You are a precise legal drafting assistant. Write clearly, cite rules accurately, and never fabricate citations.') {
+    contents.push({
+      role: 'user',
+      parts: [{ text: system }]
+    })
+    contents.push({
+      role: 'model',
+      parts: [{ text: 'I understand. I will act as a precise legal drafting assistant.' }]
+    })
+  }
+
+  // Convert conversation history
+  for (const msg of messages) {
+    contents.push({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    })
+  }
+
+  // Use gemini-pro as default if model isn't specified or use the provided model
+  const geminiModel = model === 'gpt-4o-mini' || model === 'gpt-4o' ? 'gemini-pro' : model
+
+  const payload = {
+    contents,
   
   return { content, usage }
 }
@@ -73,6 +126,29 @@ async function handleGemini(
       topK: 40,
       topP: 0.95,
       maxOutputTokens: 8192,
+    },
+    safetySettings: [
+      {
+        category: 'HARM_CATEGORY_HARASSMENT',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE'
+      },
+      {
+        category: 'HARM_CATEGORY_HATE_SPEECH',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE'
+      },
+      {
+        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE'
+      },
+      {
+        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE'
+      }
+    ]
+  }
+
+  const r = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`,
     }
   }
 
@@ -89,6 +165,26 @@ async function handleGemini(
 
   if (!r.ok) {
     const txt = await r.text()
+    return new Response(JSON.stringify({ error: 'Gemini request failed', details: txt }), {
+      status: 502,
+      headers: { 'content-type': 'application/json', ...corsHeaders(origin) },
+    })
+  }
+
+  const data = await r.json()
+  
+  // Extract content from Gemini response
+  const content = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  const usage = {
+    promptTokens: data?.usageMetadata?.promptTokenCount ?? 0,
+    completionTokens: data?.usageMetadata?.candidatesTokenCount ?? 0,
+    totalTokens: data?.usageMetadata?.totalTokenCount ?? 0,
+  }
+
+  return new Response(JSON.stringify({ content, usage }), {
+    headers: { 'content-type': 'application/json', ...corsHeaders(origin) },
+  })
+}
     throw new Error(`Gemini request failed: ${txt}`)
   }
   
@@ -176,6 +272,15 @@ serve(async (req) => {
       typeof body?.system === 'string' && body.system.trim().length > 0
         ? body.system
         : 'You are a precise legal drafting assistant. Write clearly, cite rules accurately, and never fabricate citations.'
+    const model = typeof body?.model === 'string' && body.model.trim().length > 0 ? body.model : 'gpt-4o-mini'
+    const provider = typeof body?.provider === 'string' ? body.provider : 'openai'
+
+    // Route to appropriate AI provider
+    if (provider === 'gemini') {
+      return await handleGeminiRequest(messages, system, model, origin)
+    } else {
+      return await handleOpenAIRequest(messages, system, model, origin)
+    }
     
     // Set default model based on provider
     const defaultModel = provider === 'gemini' ? 'gemini-pro' : 'gpt-4o-mini'
