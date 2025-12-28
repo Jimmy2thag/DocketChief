@@ -17,22 +17,29 @@ interface AuthModalProps {
 
 export function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthModalProps) {
   const { signIn, signUp } = useAuth();
-  const [email, setEmail] = useState('james@docketchief.com');
-  const [password, setPassword] = useState('12345678A');
-  const [fullName, setFullName] = useState('James Docket Chief');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldError, setFieldError] = useState<string>('');
   const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [emailVerificationSent, setEmailVerificationSent] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setFieldError('');
 
     try {
       if (mode === 'signup') {
         const { error } = await signUp(email, password, fullName);
-        if (error) throw error;
+        if (error) {
+          setError(error.message);
+          if (error.field) setFieldError(error.field);
+          throw new Error(error.message);
+        }
         // Mock email verification sent
         setEmailVerificationSent(true);
         setTimeout(() => {
@@ -41,22 +48,30 @@ export function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthModalProp
         }, 2000);
       } else {
         const { error } = await signIn(email, password);
-        if (error) throw error;
+        if (error) {
+          setError(error.message);
+          if (error.field) setFieldError(error.field);
+          throw new Error(error.message);
+        }
         onClose();
         resetForm();
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      // Error already set above
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
   };
 
   const resetForm = () => {
-    setEmail('james@docketchief.com');
-    setPassword('12345678A');
-    setFullName('James Docket Chief');
+    setEmail('');
+    setPassword('');
+    setFullName('');
     setError('');
+    setFieldError('');
+    setEmailVerificationSent(false);
   };
 
   const handleClose = () => {
@@ -96,6 +111,7 @@ export function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthModalProp
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       required
+                      className={fieldError === 'fullName' ? 'border-red-500' : ''}
                     />
                   </div>
                 )}
@@ -108,6 +124,7 @@ export function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthModalProp
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    className={fieldError === 'email' ? 'border-red-500' : ''}
                   />
                 </div>
                 
@@ -119,8 +136,14 @@ export function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthModalProp
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    minLength={6}
+                    minLength={8}
+                    className={fieldError === 'password' ? 'border-red-500' : ''}
                   />
+                  {mode === 'signup' && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Must be at least 8 characters with uppercase, lowercase, number, and special character
+                    </p>
+                  )}
                 </div>
 
                 {error && (

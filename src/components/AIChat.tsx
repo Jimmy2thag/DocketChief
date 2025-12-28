@@ -236,7 +236,7 @@ export function AIChat() {
                 <div className="text-xs text-left bg-muted p-3 rounded-lg">
                   <strong>I can help with:</strong>
                   <ul className="mt-1 space-y-1">
-                    <li>• Legal research & case law analysis</li>
+                    <li>• Legal research & case law analysis (Google Scholar, federal & state)</li>
                     <li>• Document review & drafting</li>
                     <li>• Motion & brief assistance</li>
                     <li>• Citation formatting</li>
