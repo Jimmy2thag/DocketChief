@@ -229,7 +229,21 @@ export async function searchOpinions(
     });
 
     if (!response.ok) {
-      throw new Error(`CourtListener search failed: ${response.status}`);
+      const errorText = await response.text();
+      
+      // Handle rate limiting (429)
+      if (response.status === 429) {
+        throw new Error('Rate limit exceeded. CourtListener allows 5,000 queries per hour.');
+      }
+      
+      // Handle authentication errors (401, 403)
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Authentication failed. Please check your API token.');
+      }
+      
+      throw new Error(
+        `CourtListener search failed (${response.status}): ${errorText}`
+      );
     }
 
     const data = (await response.json()) as SearchAPIResponse;
@@ -264,7 +278,7 @@ export async function getCourt(courtId: string) {
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch court ${courtId}`);
+    throw new Error(`Failed to fetch court ${courtId} (${response.status})`);
   }
 
   return response.json();
