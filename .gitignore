@@ -34,3 +34,11 @@ dist-ssr
 .env
 .env.local
 .env.production
+# Local Netlify folder
+.netlify
+
+# Test results and traces
+test-results
+playwright-report
+playwright/.cache
+test-results/
