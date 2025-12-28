@@ -10,8 +10,8 @@ type User = {
 type AuthCtx = {
   user: User | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<{ error: any | null }>
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: any | null }>
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>
+  signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
 }
 
@@ -30,7 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser({
             id: session.user.id,
             email: session.user.email,
-            full_name: (session.user.user_metadata as any)?.full_name ?? null,
+            full_name: (session.user.user_metadata as { full_name?: string })?.full_name ?? null,
           })
         }
         setLoading(false)
@@ -43,7 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser({
           id: session.user.id,
           email: session.user.email,
-          full_name: (session.user.user_metadata as any)?.full_name ?? null,
+          full_name: (session.user.user_metadata as { full_name?: string })?.full_name ?? null,
         })
       } else {
         setUser(null)
