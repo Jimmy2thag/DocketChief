@@ -36,6 +36,7 @@ dist-ssr
 .env.production
 # Local Netlify folder
 .netlify
+.env.local
 
 # Test results and traces
 test-results
