@@ -4,6 +4,7 @@ export interface CourtListenerResult {
   id: number;
   absolute_url: string;
   case_name: string;
+  caseName: string;  // Alias for backward compatibility
   date_filed: string;
   docket_number: string;
   court: string;
@@ -48,12 +49,15 @@ interface OpinionCluster {
 }
 
 interface CourtListenerAPIResponse {
-  count: string | number;  // Can be a URL to get count
+  count: string | number;  // Total count (may be a string in some API responses)
   next: string | null;
   previous: string | null;
   results: OpinionCluster[];
 }
 
+/**
+ * Search endpoint result (API may return either camelCase or snake_case fields)
+ */
 interface SearchResult {
   id: number;
   absolute_url: string;
@@ -179,19 +183,23 @@ export async function searchCourtListener(
     const data = (await response.json()) as CourtListenerAPIResponse;
 
     // Transform API response to our interface
-    return (data.results || []).map((cluster) => ({
-      id: cluster.id,
-      absolute_url: cluster.absolute_url,
-      case_name: cluster.case_name || cluster.case_name_short || 'Unnamed Case',
-      date_filed: cluster.date_filed || '',
-      docket_number: cluster.docket?.docket_number || '',
-      court: cluster.docket?.court || '',
-      court_id: cluster.docket?.court || '',
-      citation: cluster.citations || [],
-      snippet: cluster.snippet || '',
-      cite_count: cluster.cite_count,
-      precedential_status: cluster.precedential_status,
-    }));
+    return (data.results || []).map((cluster) => {
+      const caseName = cluster.case_name || cluster.case_name_short || 'Unnamed Case';
+      return {
+        id: cluster.id,
+        absolute_url: cluster.absolute_url,
+        case_name: caseName,
+        caseName: caseName,  // Backward compatibility alias
+        date_filed: cluster.date_filed || '',
+        docket_number: cluster.docket?.docket_number || '',
+        court: cluster.docket?.court || '',
+        court_id: cluster.docket?.court || '',
+        citation: cluster.citations || [],
+        snippet: cluster.snippet || '',
+        cite_count: cluster.cite_count,
+        precedential_status: cluster.precedential_status,
+      };
+    });
   } catch (error) {
     console.error('CourtListener API Error:', error);
     throw error;
@@ -248,19 +256,23 @@ export async function searchOpinions(
 
     const data = (await response.json()) as SearchAPIResponse;
 
-    return (data.results || []).map((result) => ({
-      id: result.id,
-      absolute_url: result.absolute_url || '',
-      case_name: result.caseName || result.case_name || 'Unnamed Case',
-      date_filed: result.dateFiled || result.date_filed || '',
-      docket_number: result.docketNumber || result.docket_number || '',
-      court: result.court || '',
-      court_id: result.court_id || result.court || '',
-      citation: result.citation || [],
-      snippet: result.snippet || '',
-      cite_count: result.citeCount || result.cite_count,
-      precedential_status: result.status || result.precedential_status,
-    }));
+    return (data.results || []).map((result) => {
+      const caseName = result.caseName || result.case_name || 'Unnamed Case';
+      return {
+        id: result.id,
+        absolute_url: result.absolute_url || '',
+        case_name: caseName,
+        caseName: caseName,  // Backward compatibility alias
+        date_filed: result.dateFiled || result.date_filed || '',
+        docket_number: result.docketNumber || result.docket_number || '',
+        court: result.court || '',
+        court_id: result.court_id || result.court || '',
+        citation: result.citation || [],
+        snippet: result.snippet || '',
+        cite_count: result.citeCount || result.cite_count,
+        precedential_status: result.status || result.precedential_status,
+      };
+    });
   } catch (error) {
     console.error('CourtListener Search Error:', error);
     throw error;
@@ -292,8 +304,8 @@ export async function getCourt(courtId: string): Promise<Court> {
     throw new Error('Court ID is required and must be a non-empty string');
   }
 
-  // Sanitize courtId to prevent URL injection
-  const sanitizedCourtId = courtId.trim().replace(/[^a-z0-9-]/gi, '');
+  // Sanitize courtId to prevent URL injection (allow alphanumeric, hyphens, and underscores)
+  const sanitizedCourtId = courtId.trim().replace(/[^a-z0-9-_]/gi, '');
   if (sanitizedCourtId.length === 0) {
     throw new Error('Invalid court ID format');
   }
