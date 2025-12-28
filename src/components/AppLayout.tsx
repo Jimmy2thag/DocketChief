@@ -1,49 +1,49 @@
-import React, { useState } from 'react';
-import { MotionCard } from './MotionCard';
-import { DocumentEditor } from './DocumentEditor';
-import { CaseAnalyzer } from './CaseAnalyzer';
-import RulesDatabase from './RulesDatabase';
-import RebuttalAssistant from './RebuttalAssistant';
-import CaseLawDatabase from './CaseLawDatabase';
-import { BriefGenerator } from './BriefGenerator';
-import { ClientPortal } from './ClientPortal';
-import { DocumentUpload } from './DocumentUpload';
-import { DocumentManager } from './DocumentManager';
-import { UserDashboard } from './UserDashboard';
-import { AuthModal } from './AuthModal';
-import { AIChat } from './AIChat';
-import { ConversationImport } from './ConversationImport';
-import { ConversationManager } from './ConversationManager';
-import { AdvancedSearch } from './AdvancedSearch';
-import { CollaborationTools } from './CollaborationTools';
-import { CaseManagementDashboard } from './CaseManagementDashboard';
-import { LegalResearchTool } from './LegalResearchTool';
-import { CalendarDashboard } from './CalendarDashboard';
-import { EmailDashboard } from './EmailDashboard';
-import { LegalToolsGrid } from './LegalToolsGrid';
-import { AnalyticsDashboard } from './AnalyticsDashboard';
-import { ContractDraftingTool } from './ContractDraftingTool';
-import LegalDatabaseSearch from './LegalDatabaseSearch';
-import CourtListenerAPI from './CourtListenerAPI';
-import PaymentPlans from './PaymentPlans';
-import { PaymentPortal } from './PaymentPortal';
-import PaymentSuccess from './PaymentSuccess';
-import PaymentCancel from './PaymentCancel';
-import { SubscriptionDashboard } from './SubscriptionDashboard';
-import { ServiceStatus } from './ServiceStatus';
-import DocumentAnalyzer from './DocumentAnalyzer';
-import { AlertDashboard } from './AlertDashboard';
-import { AdminSubscriptionAnalytics } from './AdminSubscriptionAnalytics';
-
-
-import { TemplateLibrary } from './TemplateLibrary';
-import { TemplateEditor } from './TemplateEditor';
-import { SystemMonitor } from './SystemMonitor';
+import React, { Suspense, lazy, useState } from 'react';
 import { ErrorBoundary } from './ErrorBoundary';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from './ui/button';
 import { User, LogOut, CreditCard, Settings, Bell } from 'lucide-react';
-import { TemplateRecord, useTemplateLibrary } from '@/contexts/TemplateContext';
+import type { TemplateRecord } from '@/contexts/TemplateContext';
+import { useTemplateLibrary } from '@/contexts/TemplateContext';
+
+const DocumentEditor = lazy(() => import('./DocumentEditor').then(module => ({ default: module.DocumentEditor })));
+const CaseAnalyzer = lazy(() => import('./CaseAnalyzer').then(module => ({ default: module.CaseAnalyzer })));
+const RulesDatabase = lazy(() => import('./RulesDatabase'));
+const RebuttalAssistant = lazy(() => import('./RebuttalAssistant'));
+const CaseLawDatabase = lazy(() => import('./CaseLawDatabase'));
+const BriefGenerator = lazy(() => import('./BriefGenerator').then(module => ({ default: module.BriefGenerator })));
+const ClientPortal = lazy(() => import('./ClientPortal').then(module => ({ default: module.ClientPortal })));
+const DocumentUpload = lazy(() => import('./DocumentUpload'));
+const DocumentManager = lazy(() => import('./DocumentManager').then(module => ({ default: module.DocumentManager })));
+const UserDashboard = lazy(() => import('./UserDashboard').then(module => ({ default: module.UserDashboard })));
+const AuthModal = lazy(() => import('./AuthModal').then(module => ({ default: module.AuthModal })));
+const AIChat = lazy(() => import('./AIChat').then(module => ({ default: module.AIChat })));
+const AssistantChat = lazy(() => import('./AssistantChat').then(module => ({ default: module.AssistantChat })));
+const ConversationImport = lazy(() => import('./ConversationImport').then(module => ({ default: module.ConversationImport })));
+const ConversationManager = lazy(() => import('./ConversationManager').then(module => ({ default: module.ConversationManager })));
+const AdvancedSearch = lazy(() => import('./AdvancedSearch').then(module => ({ default: module.AdvancedSearch })));
+const CollaborationTools = lazy(() => import('./CollaborationTools').then(module => ({ default: module.CollaborationTools })));
+const CaseManagementDashboard = lazy(() => import('./CaseManagementDashboard').then(module => ({ default: module.CaseManagementDashboard })));
+const LegalResearchTool = lazy(() => import('./LegalResearchTool').then(module => ({ default: module.LegalResearchTool })));
+const CalendarDashboard = lazy(() => import('./CalendarDashboard').then(module => ({ default: module.CalendarDashboard })));
+const EmailDashboard = lazy(() => import('./EmailDashboard').then(module => ({ default: module.EmailDashboard })));
+const LegalToolsGrid = lazy(() => import('./LegalToolsGrid').then(module => ({ default: module.LegalToolsGrid })));
+const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard').then(module => ({ default: module.AnalyticsDashboard })));
+const ContractDraftingTool = lazy(() => import('./ContractDraftingTool').then(module => ({ default: module.ContractDraftingTool })));
+const LegalDatabaseSearch = lazy(() => import('./LegalDatabaseSearch'));
+const CourtListenerAPI = lazy(() => import('./CourtListenerAPI'));
+const PaymentPlans = lazy(() => import('./PaymentPlans'));
+const PaymentPortal = lazy(() => import('./PaymentPortal').then(module => ({ default: module.PaymentPortal })));
+const PaymentSuccess = lazy(() => import('./PaymentSuccess'));
+const PaymentCancel = lazy(() => import('./PaymentCancel'));
+const SubscriptionDashboard = lazy(() => import('./SubscriptionDashboard').then(module => ({ default: module.SubscriptionDashboard })));
+const ServiceStatus = lazy(() => import('./ServiceStatus').then(module => ({ default: module.ServiceStatus })));
+const DocumentAnalyzer = lazy(() => import('./DocumentAnalyzer'));
+const AlertDashboard = lazy(() => import('./AlertDashboard').then(module => ({ default: module.AlertDashboard })));
+const AdminSubscriptionAnalytics = lazy(() => import('./AdminSubscriptionAnalytics').then(module => ({ default: module.AdminSubscriptionAnalytics })));
+const TemplateLibrary = lazy(() => import('./TemplateLibrary').then(module => ({ default: module.TemplateLibrary })));
+const TemplateEditor = lazy(() => import('./TemplateEditor').then(module => ({ default: module.TemplateEditor })));
+const SystemMonitor = lazy(() => import('./SystemMonitor'));
 
 export const AppLayout = () => {
   const { user, signOut } = useAuth();
@@ -56,6 +56,13 @@ export const AppLayout = () => {
   const { upsertTemplate } = useTemplateLibrary();
   
   const legalTools = [
+    {
+      id: 'assistant',
+      title: '🧠 Smart Assistant',
+      description: 'Memory-enhanced AI assistant that learns your preferences and helps you work faster',
+      image: 'https://d64gsuwffb70l.cloudfront.net/68d655106ee34a31072787c7_1758953707069_493aacf9.webp',
+      onClick: () => setActiveTab('assistant')
+    },
     {
       id: 'document-analyzer',
       title: 'AI Document Analysis',
@@ -177,6 +184,8 @@ export const AppLayout = () => {
         return user ? <CalendarDashboard /> : <div className="p-8 text-center">Please sign in to view calendar</div>;
       case 'chat':
         return <AIChat />;
+      case 'assistant':
+        return <AssistantChat />;
       case 'conversations':
         return user ? <ConversationManager /> : <div className="p-8 text-center">Please sign in to view conversations</div>;
       case 'import':
@@ -292,6 +301,7 @@ export const AppLayout = () => {
                   </button>
                   <div className="absolute left-0 mt-2 w-64 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                     <div className="py-2">
+                      <button onClick={() => setActiveTab('assistant')} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">🧠 Smart Assistant (New)</button>
                       <button onClick={() => setActiveTab('chat')} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">AI Chat</button>
                       <button onClick={() => setActiveTab('conversations')} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">Conversation Manager</button>
                       <button onClick={() => setActiveTab('import')} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">Import Conversations</button>
@@ -374,21 +384,29 @@ export const AppLayout = () => {
           </div>
         </nav>
         
-        <main>{renderContent()}</main>
-        
+        <main>
+          <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading...</div>}>
+            {renderContent()}
+          </Suspense>
+        </main>
+
         {selectedMotion && (
-          <DocumentEditor
-            motionType={selectedMotion}
-            onClose={() => setSelectedMotion(null)}
-          />
+          <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading document editor...</div>}>
+            <DocumentEditor
+              motionType={selectedMotion}
+              onClose={() => setSelectedMotion(null)}
+            />
+          </Suspense>
         )}
-        
-        <AuthModal
-          isOpen={showAuthModal}
-          onClose={() => setShowAuthModal(false)}
-          mode={authMode}
-          onModeChange={setAuthMode}
-        />
+
+        <Suspense fallback={null}>
+          <AuthModal
+            isOpen={showAuthModal}
+            onClose={() => setShowAuthModal(false)}
+            mode={authMode}
+            onModeChange={setAuthMode}
+          />
+        </Suspense>
       </div>
     </ErrorBoundary>
   );

@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "@supabase/functions": "jsr:@supabase/functions@1.4.3",
+    "stripe": "npm:stripe@14.14.0"
+  }
+}

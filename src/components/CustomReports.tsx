@@ -5,7 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Download, Plus, FileText, Calendar, Filter } from 'lucide-react';
+import { Download, Plus, FileText, Calendar, Filter, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 
 export function CustomReports() {
   const [reportName, setReportName] = useState('');
@@ -13,6 +16,9 @@ export function CustomReports() {
   const [dateRange, setDateRange] = useState('');
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
   const [filters, setFilters] = useState<string[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const { user } = useAuth();
+  const { toast } = useToast();
 
   const availableMetrics = [
     { id: 'case-win-rate', label: 'Case Win Rate' },
@@ -57,62 +63,123 @@ export function CustomReports() {
     );
   };
 
-  const handleGenerateReport = () => {
-    console.log('Generating custom report:', {
-      name: reportName,
-      type: reportType,
-      dateRange,
-      metrics: selectedMetrics,
-      filters
-    });
+  const handleGenerateReport = async () => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to generate reports",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    // Mock report generation
-    const reportData = {
-      name: reportName || 'Custom Report',
-      type: reportType,
-      dateRange,
-      metrics: selectedMetrics,
-      filters,
-      generatedAt: new Date().toISOString(),
-      data: 'Mock report data would be generated here'
-    };
+    setIsGenerating(true);
+    
+    try {
+      // Call the Supabase edge function to generate the report
+      const { data, error } = await supabase.functions.invoke('generate-report', {
+        body: {
+          reportName: reportName || 'Custom Report',
+          reportType,
+          dateRange,
+          metrics: selectedMetrics,
+          filters,
+          userId: user.id
+        }
+      });
 
-    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${reportName || 'custom-report'}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+      if (error) throw error;
 
-    // Reset form
-    setReportName('');
-    setReportType('');
-    setDateRange('');
-    setSelectedMetrics([]);
-    setFilters([]);
+      if (data.success) {
+        // Download the generated report
+        const reportData = JSON.stringify(data.reportData, null, 2);
+        const blob = new Blob([reportData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${reportName || 'custom-report'}-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        toast({
+          title: "Report Generated",
+          description: data.message || "Your custom report has been generated and downloaded"
+        });
+
+        // Reset form
+        setReportName('');
+        setReportType('');
+        setDateRange('');
+        setSelectedMetrics([]);
+        setFilters([]);
+      } else {
+        throw new Error(data.error || 'Report generation failed');
+      }
+    } catch (error: any) {
+      console.error('Report generation error:', error);
+      toast({
+        title: "Report Generation Failed",
+        description: error.message || "Failed to generate report. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
-  const handleRunSavedReport = (reportName: string) => {
-    console.log('Running saved report:', reportName);
-    // Mock running saved report
-    const reportData = {
-      reportName,
-      runAt: new Date().toISOString(),
-      data: 'Mock saved report data'
-    };
+  const handleRunSavedReport = async (reportName: string) => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to run reports",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${reportName.toLowerCase().replace(/\s+/g, '-')}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setIsGenerating(true);
+    
+    try {
+      // In a real implementation, you would fetch the saved report configuration
+      // and use it to generate the report
+      toast({
+        title: "Running Report",
+        description: `Generating ${reportName}...`
+      });
+
+      // Mock running saved report - in production this would fetch config and regenerate
+      const reportData = {
+        reportName,
+        runAt: new Date().toISOString(),
+        data: 'Saved report data would be generated here based on stored configuration'
+      };
+
+      const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${reportName.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Report Complete",
+        description: `${reportName} has been generated and downloaded`
+      });
+    } catch (error: any) {
+      console.error('Error running saved report:', error);
+      toast({
+        title: "Report Error",
+        description: "Failed to run saved report. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -207,10 +274,19 @@ export function CustomReports() {
           <Button 
             onClick={handleGenerateReport} 
             className="w-full"
-            disabled={!reportName || !reportType || selectedMetrics.length === 0}
+            disabled={!reportName || !reportType || selectedMetrics.length === 0 || isGenerating}
           >
-            <FileText className="w-4 h-4 mr-2" />
-            Generate Custom Report
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Generating Report...
+              </>
+            ) : (
+              <>
+                <FileText className="w-4 h-4 mr-2" />
+                Generate Custom Report
+              </>
+            )}
           </Button>
         </CardContent>
       </Card>

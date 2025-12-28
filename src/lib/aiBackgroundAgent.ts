@@ -62,6 +62,9 @@ function getStoredAlerts(): StoredAlert[] {
       '[aiBackgroundAgent] Failed to read or parse stored alerts from localStorage:',
       error
     );
+  try {
+    return JSON.parse(localStorage.getItem(ALERTS_STORAGE_KEY) || '[]');
+  } catch {
     return [];
   }
 }
@@ -171,6 +174,8 @@ export function startAIBackgroundAgent(config: Partial<AgentConfig> = {}) {
   retryFailedAlerts().catch((error) =>
     console.error('AI background agent retryFailedAlerts error:', error)
   );
+  reviewAlerts(mergedConfig);
+  retryFailedAlerts();
 
   alertReviewTimer = window.setInterval(() => reviewAlerts(mergedConfig), mergedConfig.alertReviewIntervalMs);
   failedAlertTimer = window.setInterval(
