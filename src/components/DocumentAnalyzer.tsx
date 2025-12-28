@@ -48,7 +48,7 @@ const detectParties = (text: string) => {
 };
 
 const detectDates = (text: string) => {
-  const pattern = /(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}|\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/g;
+  const pattern = /(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}|\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/g;
   return text.match(pattern)?.slice(0, 6) || [];
 };
 
@@ -275,10 +275,10 @@ Document:
           obligations: normalizeArray(parsed.keyInformation?.obligations),
         },
         importantClauses: Array.isArray(parsed.importantClauses)
-          ? parsed.importantClauses.map((clause: any) => ({
+          ? parsed.importantClauses.map((clause: { title?: string; content?: string; importance?: string; explanation?: string }) => ({
               title: clause?.title || 'Untitled Clause',
               content: clause?.content || 'No clause content provided.',
-              importance: clause?.importance === 'low' || clause?.importance === 'medium' ? clause.importance : 'high',
+              importance: clause?.importance === 'low' || clause?.importance === 'medium' ? clause.importance as 'low' | 'medium' : 'high',
               explanation: clause?.explanation || 'No explanation provided.',
             }))
           : [],
@@ -288,7 +288,7 @@ Document:
           recommendations: normalizeArray(parsed.riskAssessment?.recommendations),
         },
         suggestedEdits: Array.isArray(parsed.suggestedEdits)
-          ? parsed.suggestedEdits.map((edit: any) => ({
+          ? parsed.suggestedEdits.map((edit: { section?: string; current?: string; suggested?: string; reason?: string }) => ({
               section: edit?.section || 'Unspecified Section',
               current: edit?.current || 'No current text provided.',
               suggested: edit?.suggested || 'No suggestion provided.',
@@ -302,11 +302,24 @@ Document:
       await gatherSupportingCases(normalized);
     } catch (err) {
       console.error('Document analysis failed', err);
-      setError(err instanceof Error ? err.message : 'Analysis failed. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Analysis failed. Please try again.';
+      setError(errorMessage);
+      
       if (documentText) {
         const fallback = buildFallbackAnalysis(documentText);
         setAnalysis(fallback);
-        setNotice('Analysis service unavailable. Showing local heuristic analysis.');
+        
+        // Provide more helpful notice based on the error
+        if (errorMessage.includes('not deployed')) {
+          setNotice('⚠️ Edge function not deployed. Contact admin to deploy legal-ai-chat function. Showing local analysis.');
+        } else if (errorMessage.includes('CORS')) {
+          setNotice('⚠️ CORS configuration issue. Check edge function settings. Showing local analysis.');
+        } else if (errorMessage.includes('Authentication')) {
+          setNotice('⚠️ Authentication issue. Check Supabase configuration. Showing local analysis.');
+        } else {
+          setNotice('⚠️ AI service unavailable. Showing local heuristic analysis.');
+        }
+        
         await gatherSupportingCases(fallback);
       }
     } finally {

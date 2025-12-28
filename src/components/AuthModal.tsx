@@ -58,6 +58,8 @@ export function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthModalProp
       }
     } catch (err) {
       // Error already set above
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }

@@ -12,7 +12,11 @@ interface DocumentAnalysis {
   file_name: string;
   file_url: string;
   original_text: string;
-  analysis_result: any;
+  analysis_result: {
+    summary?: string;
+    keyInformation?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
   created_at: string;
 }
 
