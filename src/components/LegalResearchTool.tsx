@@ -90,7 +90,7 @@ export const LegalResearchTool: React.FC = () => {
     setError(null);
 
     try {
-      // Try to use the AI service for enhanced legal research
+      // Use the legal research service
       const { data, error: searchError } = await supabase.functions
         .invoke('legal-research', {
           body: { 
@@ -109,66 +109,17 @@ export const LegalResearchTool: React.FC = () => {
         setResults(data.results || []);
         setTotalResults(data.totalResults || 0);
       } else {
-        throw new Error(data.error || 'Search failed');
+        // API is not configured or returned an error
+        setError(data.error || 'Legal research API not available. Please configure COURTLISTENER_API_TOKEN environment variable.');
+        setResults([]);
+        setTotalResults(0);
       }
 
     } catch (err: any) {
       console.error('Research error:', err);
-      
-      // Fallback to enhanced mock data with AI-powered analysis
-      const mockResults: ResearchResult[] = [
-        {
-          id: '1',
-          title: 'Hadley v. Baxendale',
-          citation: '9 Ex. 341, 156 Eng. Rep. 145 (1854)',
-          parsedCitation: 'Hadley v. Baxendale, 9 Ex. 341, 156 Eng. Rep. 145 (1854)',
-          court: 'Court of Exchequer',
-          date: '1854-02-23',
-          summary: 'Landmark case establishing the rule for consequential damages in contract law. Damages must be reasonably foreseeable as a probable result of breach. Sets the standard for remoteness of damage in contract disputes.',
-          docketNumber: 'Ex. 341',
-          status: 'Final',
-          citeCount: 15847,
-          relevanceScore: 92,
-          url: 'https://scholar.google.com/scholar_case?case=hadley-baxendale'
-        },
-        {
-          id: '2',
-          title: 'Carlill v. Carbolic Smoke Ball Co.',
-          citation: '[1893] 1 Q.B. 256',
-          parsedCitation: 'Carlill v. Carbolic Smoke Ball Co., [1893] 1 Q.B. 256',
-          court: 'Court of Appeal',
-          date: '1893-12-07',
-          summary: 'Foundational case on unilateral contracts and consideration. Established that advertisements can constitute binding offers when specific terms are met. Critical for understanding offer and acceptance principles.',
-          docketNumber: 'Q.B. 256',
-          status: 'Final',
-          citeCount: 12453,
-          relevanceScore: 88,
-          url: 'https://scholar.google.com/scholar_case?case=carlill-carbolic'
-        },
-        {
-          id: '3',
-          title: 'Donoghue v. Stevenson',
-          citation: '[1932] A.C. 562',
-          parsedCitation: 'Donoghue v. Stevenson, [1932] A.C. 562',
-          court: 'House of Lords',
-          date: '1932-05-26',
-          summary: 'Established the modern law of negligence and the neighbor principle. Created duty of care framework that manufacturers owe to ultimate consumers. Fundamental case for tort law and product liability.',
-          docketNumber: 'A.C. 562',
-          status: 'Final',
-          citeCount: 18923,
-          relevanceScore: 85,
-          url: 'https://scholar.google.com/scholar_case?case=donoghue-stevenson'
-        }
-      ].filter(result => {
-        const searchTerm = query.toLowerCase();
-        return result.title.toLowerCase().includes(searchTerm) ||
-               result.summary.toLowerCase().includes(searchTerm) ||
-               result.citation.toLowerCase().includes(searchTerm);
-      });
-
-      setResults(mockResults);
-      setTotalResults(mockResults.length);
-      setError('Using enhanced research database. For full CourtListener integration, please check your connection.');
+      setError('Failed to connect to legal research service. Please try again later.');
+      setResults([]);
+      setTotalResults(0);
     } finally {
       setLoading(false);
     }
