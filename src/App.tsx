@@ -11,12 +11,24 @@ import { AssistantProvider } from "@/contexts/AssistantContext";
 import { startAIBackgroundAgent } from "@/lib/aiBackgroundAgent";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import AuthCallback from "./pages/AuthCallback";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <ThemeProvider defaultTheme="light">
     <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
       <AuthProvider>
         <AssistantProvider>
           <TooltipProvider>

@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { signInSchema, signUpSchema } from '@/lib/validation'
+import { authRateLimiter, RateLimitError, formatRetryAfter } from '@/lib/rateLimiter'
+import { secureLocalStorage } from '@/lib/secureStorage'
 
 type User = {
   id: string
@@ -7,9 +10,16 @@ type User = {
   full_name?: string | null
 }
 
+type AuthError = {
+  message: string
+  field?: string
+}
+
 type AuthCtx = {
   user: User | null
   loading: boolean
+  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>
+  signUp: (email: string, password: string, fullName: string) => Promise<{ error: AuthError | null }>
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
@@ -57,21 +67,90 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [])
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error }
+    // Check rate limit
+    const rateLimitCheck = await authRateLimiter.checkLimit('signin');
+    if (!rateLimitCheck.allowed) {
+      const retryAfter = Math.ceil((rateLimitCheck.resetTime - Date.now()) / 1000);
+      return {
+        error: {
+          message: `Too many sign-in attempts. Please try again in ${formatRetryAfter(retryAfter)}.`,
+        },
+      };
+    }
+
+    // Validate input
+    const validation = signInSchema.safeParse({ email, password });
+    if (!validation.success) {
+      const firstError = validation.error.errors[0];
+      return {
+        error: {
+          message: firstError.message,
+          field: firstError.path[0] as string,
+        },
+      };
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({ 
+      email: validation.data.email, 
+      password: validation.data.password 
+    });
+
+    if (error) {
+      return {
+        error: {
+          message: error.message,
+        },
+      };
+    }
+
+    return { error: null };
   }
 
   const signUp = async (email: string, password: string, fullName: string) => {
+    // Check rate limit
+    const rateLimitCheck = await authRateLimiter.checkLimit('signup');
+    if (!rateLimitCheck.allowed) {
+      const retryAfter = Math.ceil((rateLimitCheck.resetTime - Date.now()) / 1000);
+      return {
+        error: {
+          message: `Too many sign-up attempts. Please try again in ${formatRetryAfter(retryAfter)}.`,
+        },
+      };
+    }
+
+    // Validate input
+    const validation = signUpSchema.safeParse({ email, password, fullName });
+    if (!validation.success) {
+      const firstError = validation.error.errors[0];
+      return {
+        error: {
+          message: firstError.message,
+          field: firstError.path[0] as string,
+        },
+      };
+    }
+
     const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName } },
-    })
-    return { error }
+      email: validation.data.email,
+      password: validation.data.password,
+      options: { data: { full_name: validation.data.fullName } },
+    });
+
+    if (error) {
+      return {
+        error: {
+          message: error.message,
+        },
+      };
+    }
+
+    return { error: null };
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    await supabase.auth.signOut();
+    // Clear any sensitive data from secure storage
+    secureLocalStorage.clear();
   }
 
   const value = useMemo(() => ({ user, loading, signIn, signUp, signOut }), [user, loading])
