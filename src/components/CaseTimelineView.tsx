@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,11 +23,7 @@ export function CaseTimelineView({ caseId }: CaseTimelineViewProps) {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchTimelineEvents();
-  }, [caseId]);
-
-  const fetchTimelineEvents = async () => {
+  const fetchTimelineEvents = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('case_events')
@@ -42,7 +38,11 @@ export function CaseTimelineView({ caseId }: CaseTimelineViewProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [caseId]);
+
+  useEffect(() => {
+    fetchTimelineEvents();
+  }, [fetchTimelineEvents]);
 
   const getEventIcon = (eventType: string) => {
     switch (eventType) {

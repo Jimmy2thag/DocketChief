@@ -4,9 +4,43 @@ export interface StripeWebhookEvent {
   id: string;
   type: string;
   data: {
-    object: any;
+    object: unknown;
   };
 }
+
+type StripeSubscription = {
+  id: string;
+  customer: string;
+  status: string;
+  items: {
+    data: Array<{
+      price?: {
+        id?: string;
+        nickname?: string;
+        product?: string;
+      };
+    }>;
+  };
+  current_period_end: number;
+  cancel_at_period_end: boolean;
+  canceled_at?: number | null;
+};
+
+type StripeInvoice = {
+  id: string;
+  customer: string;
+  amount_paid?: number;
+  amount_due?: number;
+  currency?: string;
+  subscription?: string;
+};
+
+type StripePaymentIntent = {
+  id: string;
+  customer: string;
+  amount?: number;
+  currency?: string;
+};
 
 export async function handleStripeWebhook(event: StripeWebhookEvent) {
   console.log('Processing Stripe webhook:', event.type);
@@ -15,23 +49,23 @@ export async function handleStripeWebhook(event: StripeWebhookEvent) {
     switch (event.type) {
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
-        await handleSubscriptionUpdate(event.data.object);
+        await handleSubscriptionUpdate(event.data.object as StripeSubscription);
         break;
       
       case 'customer.subscription.deleted':
-        await handleSubscriptionDeleted(event.data.object);
+        await handleSubscriptionDeleted(event.data.object as StripeSubscription);
         break;
       
       case 'invoice.payment_succeeded':
-        await handlePaymentSucceeded(event.data.object);
+        await handlePaymentSucceeded(event.data.object as StripeInvoice);
         break;
       
       case 'invoice.payment_failed':
-        await handlePaymentFailed(event.data.object);
+        await handlePaymentFailed(event.data.object as StripeInvoice);
         break;
       
       case 'payment_intent.succeeded':
-        await handlePaymentIntentSucceeded(event.data.object);
+        await handlePaymentIntentSucceeded(event.data.object as StripePaymentIntent);
         break;
       
       default:
@@ -45,7 +79,7 @@ export async function handleStripeWebhook(event: StripeWebhookEvent) {
   }
 }
 
-async function handleSubscriptionUpdate(subscription: any) {
+async function handleSubscriptionUpdate(subscription: StripeSubscription) {
   const { id, customer, status, items, current_period_end, cancel_at_period_end, canceled_at } = subscription;
   
   const planId = items.data[0]?.price?.id;
@@ -76,7 +110,7 @@ async function handleSubscriptionUpdate(subscription: any) {
   console.log('Subscription updated successfully:', id);
 }
 
-async function handleSubscriptionDeleted(subscription: any) {
+async function handleSubscriptionDeleted(subscription: StripeSubscription) {
   const { id } = subscription;
 
   const { error } = await supabase
@@ -96,7 +130,7 @@ async function handleSubscriptionDeleted(subscription: any) {
   console.log('Subscription deleted successfully:', id);
 }
 
-async function handlePaymentSucceeded(invoice: any) {
+async function handlePaymentSucceeded(invoice: StripeInvoice) {
   const { id, customer, amount_paid, currency, subscription } = invoice;
 
   const { error } = await supabase
@@ -119,7 +153,7 @@ async function handlePaymentSucceeded(invoice: any) {
   console.log('Payment recorded successfully:', id);
 }
 
-async function handlePaymentFailed(invoice: any) {
+async function handlePaymentFailed(invoice: StripeInvoice) {
   const { id, customer, amount_due, currency, subscription } = invoice;
 
   const { error } = await supabase
@@ -142,7 +176,7 @@ async function handlePaymentFailed(invoice: any) {
   console.log('Failed payment recorded:', id);
 }
 
-async function handlePaymentIntentSucceeded(paymentIntent: any) {
+async function handlePaymentIntentSucceeded(paymentIntent: StripePaymentIntent) {
   const { id, customer, amount, currency } = paymentIntent;
 
   const { error } = await supabase

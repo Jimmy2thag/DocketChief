@@ -112,7 +112,7 @@ export const LegalResearchTool: React.FC = () => {
         throw new Error(data.error || 'Search failed');
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Research error:', err);
       
       // Fallback to enhanced mock data with AI-powered analysis
@@ -186,7 +186,7 @@ export const LegalResearchTool: React.FC = () => {
     return 'bg-gray-100 text-gray-800';
   };
 
-  const handleFilterChange = (key: keyof SearchFilters, value: any) => {
+  const handleFilterChange = <K extends keyof SearchFilters>(key: K, value: SearchFilters[K]) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 

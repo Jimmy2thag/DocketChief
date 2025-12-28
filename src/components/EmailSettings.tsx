@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,11 +27,7 @@ export function EmailSettings({ onClose }: EmailSettingsProps) {
   });
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    loadSettings();
-  }, []);
-
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       const { data } = await supabase
         .from('email_settings')
@@ -52,7 +48,11 @@ export function EmailSettings({ onClose }: EmailSettingsProps) {
     } catch (error) {
       console.error('Error loading settings:', error);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
 
   const saveSettings = async () => {
     setSaving(true);

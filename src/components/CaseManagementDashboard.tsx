@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, Filter, Calendar, User, FileText } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -36,15 +36,7 @@ export const CaseManagementDashboard: React.FC = () => {
     description: ''
   });
 
-  useEffect(() => {
-    fetchCases();
-  }, []);
-
-  useEffect(() => {
-    filterCases();
-  }, [cases, searchTerm, statusFilter]);
-
-  const fetchCases = async () => {
+  const fetchCases = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -61,9 +53,9 @@ export const CaseManagementDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const filterCases = () => {
+  const filterCases = useCallback(() => {
     let filtered = cases;
 
     if (searchTerm) {
@@ -79,7 +71,15 @@ export const CaseManagementDashboard: React.FC = () => {
     }
 
     setFilteredCases(filtered);
-  };
+  }, [cases, searchTerm, statusFilter]);
+
+  useEffect(() => {
+    fetchCases();
+  }, [fetchCases]);
+
+  useEffect(() => {
+    filterCases();
+  }, [filterCases]);
 
   const handleCreateCase = async () => {
     try {

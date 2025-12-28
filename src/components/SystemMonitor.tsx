@@ -21,7 +21,15 @@ export default function SystemMonitor() {
   const [alerts, setAlerts] = useState<SystemAlert[]>([]);
   const [emailStatus, setEmailStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [emailMessage, setEmailMessage] = useState('');
-  const [failedAlerts, setFailedAlerts] = useState<any[]>([]);
+  const [failedAlerts, setFailedAlerts] = useState<Array<{
+    alertType: string;
+    severity: 'critical' | 'high' | 'medium' | 'low';
+    message: string;
+    details?: Record<string, unknown>;
+    timestamp: string;
+    failureReason: string;
+    failureTime: string;
+  }>>([]);
 
   useEffect(() => {
     loadSystemData();

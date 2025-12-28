@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,11 +34,7 @@ export default function CaseLawDatabase() {
   const [analysis, setAnalysis] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetchCases();
-  }, []);
-
-  const fetchCases = async () => {
+  const fetchCases = useCallback(async () => {
     try {
       let query = supabase.from('case_law').select('*');
       
@@ -55,7 +51,11 @@ export default function CaseLawDatabase() {
     } catch (error) {
       console.error('Error fetching cases:', error);
     }
-  };
+  }, [searchQuery, jurisdiction, courtLevel, outcome]);
+
+  useEffect(() => {
+    fetchCases();
+  }, [fetchCases]);
 
   const analyzeSearch = async () => {
     setLoading(true);

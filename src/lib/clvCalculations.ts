@@ -1,6 +1,21 @@
 // Customer Lifetime Value calculation utilities
 
-export const calculateAverageCLV = (subscriptions: any[], payments: any[]) => {
+type SubscriptionRecord = {
+  status?: string;
+  user_id?: string;
+  created_at?: string;
+  cancelled_at?: string;
+  plan_name?: string;
+  stripe_subscription_id?: string;
+};
+
+type PaymentRecord = {
+  status?: string;
+  amount?: number;
+  subscription_id?: string;
+};
+
+export const calculateAverageCLV = (subscriptions: SubscriptionRecord[], payments: PaymentRecord[]) => {
   if (subscriptions.length === 0) return 0;
   
   const totalRevenue = payments
@@ -12,7 +27,7 @@ export const calculateAverageCLV = (subscriptions: any[], payments: any[]) => {
   return uniqueCustomers > 0 ? Math.round(totalRevenue / uniqueCustomers) : 0;
 };
 
-export const calculateAverageLifespan = (subscriptions: any[]) => {
+export const calculateAverageLifespan = (subscriptions: SubscriptionRecord[]) => {
   const cancelledSubs = subscriptions.filter(s => s.status === 'cancelled' && s.cancelled_at);
   
   if (cancelledSubs.length === 0) return 0;
@@ -27,7 +42,7 @@ export const calculateAverageLifespan = (subscriptions: any[]) => {
   return Math.round(totalMonths / cancelledSubs.length);
 };
 
-export const calculateCLVByPlan = (subscriptions: any[], payments: any[]) => {
+export const calculateCLVByPlan = (subscriptions: SubscriptionRecord[], payments: PaymentRecord[]) => {
   const planData: Record<string, { totalRevenue: number; customers: Set<string> }> = {};
   
   subscriptions.forEach(sub => {
@@ -57,7 +72,7 @@ export const calculateCLVByPlan = (subscriptions: any[], payments: any[]) => {
   }));
 };
 
-export const calculateCohortData = (subscriptions: any[], payments: any[]) => {
+export const calculateCohortData = (subscriptions: SubscriptionRecord[], payments: PaymentRecord[]) => {
   const cohorts: Record<string, { revenue: number; customers: Set<string>; retained: Set<string> }> = {};
   const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
   

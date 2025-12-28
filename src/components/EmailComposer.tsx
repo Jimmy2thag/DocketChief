@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,11 +55,7 @@ export function EmailComposer({ onClose, onSent }: EmailComposerProps) {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [sending, setSending] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [casesResult, clientsResult, templatesResult] = await Promise.all([
         supabase.from('cases').select('id, title, case_number').limit(50),
@@ -73,7 +69,11 @@ export function EmailComposer({ onClose, onSent }: EmailComposerProps) {
     } catch (error) {
       console.error('Error loading data:', error);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const applyTemplate = (templateId: string) => {
     const template = templates.find(t => t.id === templateId);

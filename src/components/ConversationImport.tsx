@@ -9,8 +9,23 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/lib/supabase';
 
+type ImportedConversation = {
+  id: string;
+  title: string;
+  platform: string;
+  conversation_data?: unknown;
+  tags?: string[];
+};
+
+type ProcessedConversationResult = {
+  title: string;
+  processedData: unknown;
+  tags: string[];
+  messageCount: number;
+};
+
 interface ConversationImportProps {
-  onImportComplete?: (conversation: any) => void;
+  onImportComplete?: (conversation: ImportedConversation) => void;
 }
 
 export function ConversationImport({ onImportComplete }: ConversationImportProps) {
@@ -19,7 +34,7 @@ export function ConversationImport({ onImportComplete }: ConversationImportProps
   const [importMethod, setImportMethod] = useState<'file' | 'paste'>('file');
   const [textData, setTextData] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<ProcessedConversationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,7 +69,7 @@ export function ConversationImport({ onImportComplete }: ConversationImportProps
     }
   };
 
-  const processImport = async (conversationData: any) => {
+  const processImport = async (conversationData: unknown) => {
     try {
       // Process the conversation data
       const { data: processedResult, error: processError } = await supabase.functions.invoke('conversation-import', {
@@ -77,15 +92,15 @@ export function ConversationImport({ onImportComplete }: ConversationImportProps
 
       if (saveError) throw saveError;
 
-      setResult(processedResult.data);
+      setResult(processedResult.data as ProcessedConversationResult);
       onImportComplete?.(savedConversation);
       
       // Reset form
       setTitle('');
       setTextData('');
       
-    } catch (err: any) {
-      setError(err.message || 'Failed to import conversation');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to import conversation');
     }
   };
 
