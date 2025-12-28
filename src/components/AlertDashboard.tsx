@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +17,7 @@ export interface Alert {
   severity: 'critical' | 'high' | 'medium' | 'low';
   title: string;
   message: string;
-  details?: any;
+  details?: Record<string, unknown>;
   status: 'open' | 'resolved' | 'investigating';
   resolved_at?: string;
   resolved_by?: string;
@@ -153,7 +154,14 @@ export const AlertDashboard = () => {
   );
 };
 
-const StatCard = ({ title, value, icon, color = "text-blue-600" }: any) => (
+type StatCardProps = {
+  title: string;
+  value: number;
+  icon: ReactNode;
+  color?: string;
+};
+
+const StatCard = ({ title, value, icon, color = "text-blue-600" }: StatCardProps) => (
   <Card>
     <CardContent className="pt-6">
       <div className="flex justify-between items-start">

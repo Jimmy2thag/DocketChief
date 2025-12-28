@@ -1,6 +1,21 @@
 // Analytics calculation utilities for subscription metrics
 
-export const calculateMRR = (subscriptions: any[]) => {
+type SubscriptionRecord = {
+  status?: string;
+  amount?: number;
+  interval?: string;
+  plan_name?: string;
+  created_at?: string;
+  cancelled_at?: string;
+};
+
+type PaymentRecord = {
+  status?: string;
+  amount?: number;
+  created_at?: string;
+};
+
+export const calculateMRR = (subscriptions: SubscriptionRecord[]) => {
   return subscriptions
     .filter(s => s.status === 'active')
     .reduce((sum, sub) => {
@@ -11,7 +26,7 @@ export const calculateMRR = (subscriptions: any[]) => {
     }, 0);
 };
 
-export const calculateChurnRate = (subscriptions: any[], payments: any[]) => {
+export const calculateChurnRate = (subscriptions: SubscriptionRecord[], payments: PaymentRecord[]) => {
   const now = new Date();
   const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -29,7 +44,7 @@ export const calculateChurnRate = (subscriptions: any[], payments: any[]) => {
   return activeLastMonth > 0 ? (cancelledThisMonth / activeLastMonth) * 100 : 0;
 };
 
-export const groupByPlan = (subscriptions: any[]) => {
+export const groupByPlan = (subscriptions: SubscriptionRecord[]) => {
   const planGroups: Record<string, { count: number; revenue: number }> = {};
   
   subscriptions
@@ -51,7 +66,7 @@ export const groupByPlan = (subscriptions: any[]) => {
   }));
 };
 
-export const calculateMRRHistory = (payments: any[]) => {
+export const calculateMRRHistory = (payments: PaymentRecord[]) => {
   const monthlyData: Record<string, { mrr: number; newMrr: number; churnedMrr: number }> = {};
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   

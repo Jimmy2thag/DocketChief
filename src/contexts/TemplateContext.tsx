@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 export interface TemplateRecord {
@@ -166,4 +167,3 @@ export const createEmptyTemplate = (): TemplateRecord => ({
   isFavorite: false,
   lastModified: new Date().toISOString().split('T')[0],
 });
-

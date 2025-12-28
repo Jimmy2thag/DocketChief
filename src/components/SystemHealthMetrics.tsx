@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert } from './AlertDashboard';
 import { Activity, Server, Database, Zap, TrendingUp, TrendingDown } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 
 interface SystemHealthMetricsProps {
   alerts: Alert[];
@@ -113,7 +114,15 @@ export const SystemHealthMetrics = ({ alerts }: SystemHealthMetricsProps) => {
   );
 };
 
-const MetricCard = ({ title, value, icon, trend, color }: any) => (
+type MetricCardProps = {
+  title: string;
+  value: string;
+  icon: ReactNode;
+  trend: 'up' | 'down';
+  color: string;
+};
+
+const MetricCard = ({ title, value, icon, trend, color }: MetricCardProps) => (
   <Card>
     <CardContent className="pt-6">
       <div className="flex justify-between items-start">
@@ -134,7 +143,13 @@ const MetricCard = ({ title, value, icon, trend, color }: any) => (
   </Card>
 );
 
-const ResourceBar = ({ label, value, color }: any) => (
+type ResourceBarProps = {
+  label: string;
+  value: number;
+  color: string;
+};
+
+const ResourceBar = ({ label, value, color }: ResourceBarProps) => (
   <div>
     <div className="flex justify-between text-sm mb-1">
       <span>{label}</span>

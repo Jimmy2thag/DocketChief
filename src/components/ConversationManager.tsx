@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { MessageSquare, Search, Filter, Calendar, Tag, Trash2, Eye, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +15,9 @@ interface Conversation {
   platform: 'chatgpt' | 'gemini';
   tags: string[];
   created_at: string;
-  conversation_data: any;
+  conversation_data: {
+    messages?: Array<{ role?: string; content?: string }>;
+  };
 }
 
 export function ConversationManager() {
@@ -26,15 +28,7 @@ export function ConversationManager() {
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    loadConversations();
-  }, []);
-
-  useEffect(() => {
-    filterConversations();
-  }, [conversations, searchTerm, platformFilter]);
-
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('imported_conversations')
@@ -48,9 +42,9 @@ export function ConversationManager() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const filterConversations = () => {
+  const filterConversations = useCallback(() => {
     let filtered = conversations;
 
     if (searchTerm) {
@@ -65,7 +59,15 @@ export function ConversationManager() {
     }
 
     setFilteredConversations(filtered);
-  };
+  }, [conversations, searchTerm, platformFilter]);
+
+  useEffect(() => {
+    loadConversations();
+  }, [loadConversations]);
+
+  useEffect(() => {
+    filterConversations();
+  }, [filterConversations]);
 
   const deleteConversation = async (id: string) => {
     try {
@@ -175,7 +177,7 @@ export function ConversationManager() {
                         </DialogHeader>
                         <ScrollArea className="h-96">
                           <div className="space-y-4">
-                            {conversation.conversation_data.messages?.map((message: any, index: number) => (
+                            {conversation.conversation_data.messages?.map((message, index) => (
                               <div key={index} className={`p-3 rounded-lg ${
                                 message.role === 'user' ? 'bg-blue-50 ml-8' : 'bg-gray-50 mr-8'
                               }`}>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -41,13 +41,7 @@ export function ClientPortal() {
   const [showAddClient, setShowAddClient] = useState(false);
   const [showAddCase, setShowAddCase] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      loadData();
-    }
-  }, [user]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [clientsRes, casesRes] = await Promise.all([
         supabase.from('clients').select('*').eq('attorney_id', user?.id),
@@ -61,7 +55,13 @@ export function ClientPortal() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, toast]);
+
+  useEffect(() => {
+    if (user) {
+      loadData();
+    }
+  }, [user, loadData]);
 
   const addClient = async (formData: FormData) => {
     const clientData = {

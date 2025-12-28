@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Users, Plus, Share2, Mail, UserPlus, Settings, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -17,7 +17,7 @@ interface Collaboration {
   description: string;
   owner_id: string;
   created_at: string;
-  members?: any[];
+  members?: Array<Record<string, unknown>>;
 }
 
 export const CollaborationTools = () => {
@@ -36,13 +36,16 @@ export const CollaborationTools = () => {
   const [inviteRole, setInviteRole] = useState('member');
   const [inviteMessage, setInviteMessage] = useState('');
 
-  useEffect(() => {
-    if (user) {
-      fetchCollaborations();
-    }
-  }, [user]);
+  const getUserCollaborationIds = useCallback(async () => {
+    const { data } = await supabase
+      .from('collaboration_members')
+      .select('collaboration_id')
+      .eq('user_id', user?.id);
+    
+    return data?.map(m => m.collaboration_id).join(',') || '';
+  }, [user?.id]);
 
-  const fetchCollaborations = async () => {
+  const fetchCollaborations = useCallback(async () => {
     if (!user) return;
     
     setLoading(true);
@@ -62,16 +65,13 @@ export const CollaborationTools = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, getUserCollaborationIds]);
 
-  const getUserCollaborationIds = async () => {
-    const { data } = await supabase
-      .from('collaboration_members')
-      .select('collaboration_id')
-      .eq('user_id', user?.id);
-    
-    return data?.map(m => m.collaboration_id).join(',') || '';
-  };
+  useEffect(() => {
+    if (user) {
+      fetchCollaborations();
+    }
+  }, [user, fetchCollaborations]);
 
   const createCollaboration = async () => {
     if (!user || !newCollabName.trim()) return;

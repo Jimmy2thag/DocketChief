@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Download, RefreshCw } from 'lucide-react';
@@ -30,12 +30,12 @@ export function AdminSubscriptionAnalytics() {
   });
 
   const [failedPaymentsData, setFailedPaymentsData] = useState({
-    failedPayments: [] as any[],
+    failedPayments: [] as FailedPaymentSummary[],
     totalFailedAmount: 0,
     recoveryRate: 0
   });
 
-  const fetchAnalyticsData = async () => {
+  const fetchAnalyticsData = useCallback(async () => {
     setLoading(true);
     try {
       const { data: subscriptions, error: subError } = await supabase
@@ -51,8 +51,8 @@ export function AdminSubscriptionAnalytics() {
 
       if (payError) throw payError;
 
-      const subs = subscriptions || [];
-      const pays = payments || [];
+      const subs = (subscriptions || []) as SubscriptionRecord[];
+      const pays = (payments || []) as PaymentRecord[];
 
       // Calculate metrics
       const activeCount = subs.filter(s => s.status === 'active').length;
@@ -90,14 +90,14 @@ export function AdminSubscriptionAnalytics() {
 
       setFailedPaymentsData({
         failedPayments: failedPays.slice(0, 10).map(p => ({
-          id: p.id,
-          customerId: p.customer_id,
+          id: p.id || crypto.randomUUID(),
+          customerId: p.customer_id || 'unknown',
           customerEmail: p.customer_email || 'N/A',
           amount: p.amount || 0,
           plan: p.plan_name || 'Unknown',
           failureReason: p.failure_reason || 'Unknown',
           attemptCount: p.retry_count || 1,
-          lastAttempt: p.created_at,
+          lastAttempt: p.created_at || new Date().toISOString(),
           nextRetry: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
           status: 'pending_retry' as const
         })),
@@ -115,7 +115,7 @@ export function AdminSubscriptionAnalytics() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     fetchAnalyticsData();
@@ -139,7 +139,7 @@ export function AdminSubscriptionAnalytics() {
       supabase.removeChannel(subscriptionChannel);
       supabase.removeChannel(paymentChannel);
     };
-  }, []);
+  }, [fetchAnalyticsData]);
 
   const exportData = () => {
     const csvData = [
@@ -201,3 +201,39 @@ export function AdminSubscriptionAnalytics() {
     </div>
   );
 }
+  type SubscriptionRecord = {
+    status?: string;
+    amount?: number;
+    interval?: string;
+    plan_name?: string;
+    user_id?: string;
+    created_at?: string;
+    cancelled_at?: string;
+    stripe_subscription_id?: string;
+  };
+
+  type PaymentRecord = {
+    id?: string;
+    status?: string;
+    amount?: number;
+    retry_count?: number;
+    customer_id?: string;
+    customer_email?: string;
+    plan_name?: string;
+    failure_reason?: string;
+    created_at?: string;
+    subscription_id?: string;
+  };
+
+  type FailedPaymentSummary = {
+    id: string;
+    customerId: string;
+    customerEmail: string;
+    amount: number;
+    plan: string;
+    failureReason: string;
+    attemptCount: number;
+    lastAttempt: string;
+    nextRetry: string;
+    status: 'pending_retry';
+  };

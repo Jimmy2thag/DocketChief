@@ -12,7 +12,12 @@ interface DocumentAnalysis {
   file_name: string;
   file_url: string;
   original_text: string;
-  analysis_result: any;
+  analysis_result: {
+    documentType?: string;
+    summary?: string;
+    keyPoints?: string[];
+    plainEnglish?: string;
+  } | null;
   created_at: string;
 }
 

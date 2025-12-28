@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -51,11 +51,7 @@ export function EmailTemplateManager({ onClose }: EmailTemplateManagerProps) {
     variables: {} as Record<string, string>
   });
 
-  useEffect(() => {
-    loadTemplates();
-  }, []);
-
-  const loadTemplates = async () => {
+  const loadTemplates = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('email_templates')
@@ -68,7 +64,11 @@ export function EmailTemplateManager({ onClose }: EmailTemplateManagerProps) {
     } catch (error) {
       console.error('Error loading templates:', error);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadTemplates();
+  }, [loadTemplates]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

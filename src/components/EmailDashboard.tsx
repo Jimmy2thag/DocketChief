@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,12 @@ interface Email {
   labels: string[];
 }
 
+type EmailInsert = Omit<Email, 'id'> & {
+  id?: string;
+  message_id?: string;
+  user_id?: string;
+};
+
 export function EmailDashboard() {
   const { user } = useAuth();
   const [emails, setEmails] = useState<Email[]>([]);
@@ -38,13 +44,7 @@ export function EmailDashboard() {
   const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (user) {
-      loadEmails();
-    }
-  }, [user]);
-
-  const loadEmails = async () => {
+  const loadEmails = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('emails')
@@ -60,7 +60,13 @@ export function EmailDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user) {
+      loadEmails();
+    }
+  }, [user, loadEmails]);
 
   const syncEmails = async (provider: 'gmail' | 'outlook') => {
     try {
@@ -76,8 +82,9 @@ export function EmailDashboard() {
       if (error) throw error;
       
       // Save synced emails to database
-      if (data.emails?.length > 0) {
-        const emailsWithUserId = data.emails.map((email: any) => ({
+      const rawEmails = Array.isArray(data?.emails) ? (data.emails as EmailInsert[]) : [];
+      if (rawEmails.length > 0) {
+        const emailsWithUserId = rawEmails.map((email) => ({
           ...email,
           user_id: user?.id
         }));

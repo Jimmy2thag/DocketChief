@@ -24,6 +24,9 @@ interface FileUploadProps {
   multiple?: boolean;
 }
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ACCEPTED_TYPES = ['.pdf', '.doc', '.docx', '.txt', '.rtf'];
+
 export function FileUpload({ onFileUploaded, multiple = true }: FileUploadProps) {
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -32,21 +35,18 @@ export function FileUpload({ onFileUploaded, multiple = true }: FileUploadProps)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [aiProvider, setAiProvider] = useState<'openai' | 'gemini'>('openai');
 
-  const maxSize = 10 * 1024 * 1024; // 10MB
-  const acceptedTypes = ['.pdf', '.doc', '.docx', '.txt', '.rtf'];
-
-  const validateFile = (file: File): string | null => {
+  const validateFile = useCallback((file: File): string | null => {
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-    if (!acceptedTypes.includes(fileExtension)) {
-      return `File type ${fileExtension} not supported. Accepted types: ${acceptedTypes.join(', ')}`;
+    if (!ACCEPTED_TYPES.includes(fileExtension)) {
+      return `File type ${fileExtension} not supported. Accepted types: ${ACCEPTED_TYPES.join(', ')}`;
     }
-    if (file.size > maxSize) {
-      return `File size exceeds ${Math.round(maxSize / 1024 / 1024)}MB limit`;
+    if (file.size > MAX_FILE_SIZE) {
+      return `File size exceeds ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB limit`;
     }
     return null;
-  };
+  }, []);
 
-  const uploadFile = async (file: File) => {
+  const uploadFile = useCallback(async (file: File) => {
     setError(null);
     setUploading(true);
     setProgress(0);
@@ -107,7 +107,7 @@ export function FileUpload({ onFileUploaded, multiple = true }: FileUploadProps)
       setUploading(false);
       setTimeout(() => setProgress(0), 1000);
     }
-  };
+  }, [aiProvider, onFileUploaded]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -122,7 +122,7 @@ export function FileUpload({ onFileUploaded, multiple = true }: FileUploadProps)
       }
       uploadFile(file);
     });
-  }, [aiProvider]);
+  }, [uploadFile, validateFile]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);

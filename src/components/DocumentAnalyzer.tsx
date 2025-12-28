@@ -48,7 +48,7 @@ const detectParties = (text: string) => {
 };
 
 const detectDates = (text: string) => {
-  const pattern = /(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}|\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/g;
+  const pattern = /(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}|\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/g;
   return text.match(pattern)?.slice(0, 6) || [];
 };
 
@@ -275,12 +275,20 @@ Document:
           obligations: normalizeArray(parsed.keyInformation?.obligations),
         },
         importantClauses: Array.isArray(parsed.importantClauses)
-          ? parsed.importantClauses.map((clause: any) => ({
-              title: clause?.title || 'Untitled Clause',
-              content: clause?.content || 'No clause content provided.',
-              importance: clause?.importance === 'low' || clause?.importance === 'medium' ? clause.importance : 'high',
-              explanation: clause?.explanation || 'No explanation provided.',
-            }))
+          ? parsed.importantClauses.map((clause: unknown) => {
+              const details = clause as {
+                title?: string;
+                content?: string;
+                importance?: 'high' | 'medium' | 'low';
+                explanation?: string;
+              };
+              return {
+                title: details?.title || 'Untitled Clause',
+                content: details?.content || 'No clause content provided.',
+                importance: details?.importance === 'low' || details?.importance === 'medium' ? details.importance : 'high',
+                explanation: details?.explanation || 'No explanation provided.',
+              };
+            })
           : [],
         riskAssessment: {
           highRisk: normalizeArray(parsed.riskAssessment?.highRisk),
@@ -288,12 +296,20 @@ Document:
           recommendations: normalizeArray(parsed.riskAssessment?.recommendations),
         },
         suggestedEdits: Array.isArray(parsed.suggestedEdits)
-          ? parsed.suggestedEdits.map((edit: any) => ({
-              section: edit?.section || 'Unspecified Section',
-              current: edit?.current || 'No current text provided.',
-              suggested: edit?.suggested || 'No suggestion provided.',
-              reason: edit?.reason || 'No reasoning provided.',
-            }))
+          ? parsed.suggestedEdits.map((edit: unknown) => {
+              const details = edit as {
+                section?: string;
+                current?: string;
+                suggested?: string;
+                reason?: string;
+              };
+              return {
+                section: details?.section || 'Unspecified Section',
+                current: details?.current || 'No current text provided.',
+                suggested: details?.suggested || 'No suggestion provided.',
+                reason: details?.reason || 'No reasoning provided.',
+              };
+            })
           : [],
         legalCitations: normalizeArray(parsed.legalCitations),
       };

@@ -45,8 +45,8 @@ export function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthModalProp
         onClose();
         resetForm();
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Authentication failed.');
     } finally {
       setLoading(false);
     }

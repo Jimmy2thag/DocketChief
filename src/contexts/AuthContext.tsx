@@ -1,4 +1,6 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import type { AuthError } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 
 type User = {
@@ -10,8 +12,8 @@ type User = {
 type AuthCtx = {
   user: User | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<{ error: any | null }>
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: any | null }>
+  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>
+  signUp: (email: string, password: string, fullName: string) => Promise<{ error: AuthError | null }>
   signOut: () => Promise<void>
 }
 
@@ -27,10 +29,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data: { session } } = await supabase.auth.getSession()
       if (mounted) {
         if (session?.user) {
+          const metadata = session.user.user_metadata as Record<string, unknown> | null
+          const fullName = typeof metadata?.full_name === 'string' ? metadata.full_name : null
           setUser({
             id: session.user.id,
             email: session.user.email,
-            full_name: (session.user.user_metadata as any)?.full_name ?? null,
+            full_name: fullName,
           })
         }
         setLoading(false)
@@ -40,10 +44,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return
       if (session?.user) {
+        const metadata = session.user.user_metadata as Record<string, unknown> | null
+        const fullName = typeof metadata?.full_name === 'string' ? metadata.full_name : null
         setUser({
           id: session.user.id,
           email: session.user.email,
-          full_name: (session.user.user_metadata as any)?.full_name ?? null,
+          full_name: fullName,
         })
       } else {
         setUser(null)
