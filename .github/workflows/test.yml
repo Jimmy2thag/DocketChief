@@ -1,0 +1,73 @@
+name: 🧪 Test & Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  test:
+    name: 🧪 Test & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version:  ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      # Add this step to install Playwright browsers
+      - name: 🎭 Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: 🔍 Run ESLint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: 🏗️ Test build
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_APP_NAME: "Docket Chief"
+          VITE_ENVIRONMENT: "production"
+          VITE_PAYMENTS_ENABLED: "true"
+
+      # Add steps to run E2E tests in the test job as well
+      - name: 🚀 Start preview server
+        run: npm run preview &
+        env:
+          PORT: 4173
+
+      - name: ⏳ Wait for server
+        run: npx wait-on http://localhost:4173
+
+      - name: 🧪 Run E2E tests
+        run: npm run test:e2e
+        env: 
+          BASE_URL: http://localhost:4173
+
+      - name: 📤 Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name:  dist
+          path: dist/
+          retention-days: 7
+
+      - name: 📤 Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
